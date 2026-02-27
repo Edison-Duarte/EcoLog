@@ -2,71 +2,61 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-# Configuração da página
+# Configuração da página e Estilo Customizado
 st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️")
 
-# Estilização da Assinatura (Aharoni/Gabriola)
+# CSS para forçar as fontes solicitadas (se disponíveis no sistema do navegador)
 st.markdown("""
     <style>
-    .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 22px; text-align: center; margin-top: 50px; margin-bottom: -10px; }
-    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 45px; text-align: center; color: #2E7D32; font-weight: bold; }
+    .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 20px; text-align: center; margin-bottom: -15px; }
+    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 40px; text-align: center; color: #2E7D32; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("♻️ Gestão de Resíduos")
-st.markdown("Sistema de Segregação: Recicláveis vs. Orgânicos")
+st.title("♻️ Gestão de Resíduos Empresariais")
+st.markdown("Separação e monitoramento de Recicláveis e Orgânicos.")
 
-# Banco de dados temporário na nuvem
+# Inicialização do Banco de Dados na Nuvem (Simulado na sessão)
 if 'db' not in st.session_state:
     st.session_state.db = pd.DataFrame(columns=['Data', 'Tipo', 'Peso (kg)'])
 
-# --- ÁREA DE INPUT ---
-with st.expander("➕ Registrar Nova Coleta", expanded=True):
+# --- ENTRADA DE DADOS ---
+with st.expander("➕ Registrar Coleta de Resíduos", expanded=True):
     col1, col2, col3 = st.columns(3)
-    data_input = col1.date_input("Data da Coleta", datetime.now())
-    tipo_input = col2.selectbox("Tipo", ["Reciclável", "Orgânico"])
+    data_input = col1.date_input("Data", datetime.now())
+    tipo_input = col2.selectbox("Categoria", ["Reciclável", "Orgânico"])
     peso_input = col3.number_input("Peso (kg)", min_value=0.0, step=0.1)
     
-    if st.button("Salvar no Sistema"):
-        novo_dado = pd.DataFrame([[pd.to_datetime(data_input), tipo_input, peso_input]], 
-                                 columns=['Data', 'Tipo', 'Peso (kg)'])
-        st.session_state.db = pd.concat([st.session_state.db, novo_dado], ignore_index=True)
-        st.success("Dados registrados com sucesso!")
+    if st.button("Salvar Dados"):
+        novo_registro = pd.DataFrame([[pd.to_datetime(data_input), tipo_input, peso_input]], 
+                                     columns=['Data', 'Tipo', 'Peso (kg)'])
+        st.session_state.db = pd.concat([st.session_state.db, novo_registro], ignore_index=True)
+        st.success("Dados armazenados com sucesso!")
 
-# --- PROCESSAMENTO E GRÁFICO ---
+# --- VISUALIZAÇÃO ---
 if not st.session_state.db.empty:
     df = st.session_state.db.copy()
     df['Data'] = pd.to_datetime(df['Data'])
     
     st.divider()
+    periodo = st.select_slider("Selecione a Periodicidade do Relatório:", 
+                               options=["Semanal", "Mensal", "Anual"])
     
-    # Seletor de Periodicidade conforme solicitado no início
-    periodo = st.radio("Selecione o período de visualização do volume:", 
-                       ["Semanal", "Mensal", "Anual"], horizontal=True)
+    # Mapeamento de frequências do Pandas
+    freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
     
-    # Mapeamento técnico para o gráfico
-    mapa_freq = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
+    # Agrupamento
+    resumo = df.groupby([pd.Grouper(key='Data', freq=freq_map[periodo]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
     
-    # Agrupamento dos dados
-    resumo = df.groupby([pd.Grouper(key='Data', freq=mapa_freq[periodo]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
-    
-    # Ajuste de rótulos para melhor leitura
-    if periodo == "Mensal":
-        resumo.index = resumo.index.strftime('%B/%Y')
-    elif periodo == "Semanal":
-        resumo.index = resumo.index.strftime('Semana %U - %Y')
-    else:
-        resumo.index = resumo.index.strftime('%Y')
-
-    st.subheader(f"📊 Volume Gerado ({periodo})")
+    st.subheader(f"📊 Volume Total {periodo}")
     st.bar_chart(resumo)
     
-    with st.expander("Ver Detalhamento em Tabela"):
+    with st.expander("📄 Ver tabela de dados"):
         st.dataframe(resumo, use_container_width=True)
 else:
-    st.info("Insira os dados acima para gerar o gráfico de volume.")
+    st.info("Aguardando o primeiro registro para gerar os gráficos.")
 
-# --- ASSINATURA EXIGIDA ---
+# --- ASSINATURA FINAL ---
 st.write("---")
 st.markdown('<p class="footer-aharoni">Developed by:</p>', unsafe_allow_html=True)
 st.markdown('<p class="footer-gabriola">Edison Duarte Filho®</p>', unsafe_allow_html=True)
