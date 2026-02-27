@@ -1,15 +1,18 @@
 import streamlit as st
-import pandas as pd
+import pd as pd
 from datetime import datetime
 
 # 1. Configuração da página
 st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️")
 
-# 2. Inicialização do Estado (Base de Dados)
+# 2. Inicialização do Estado (Base de Dados e Chave de Reset)
 if 'db' not in st.session_state:
     st.session_state.db = pd.DataFrame(columns=['Data', 'Tipo', 'Peso (kg)'])
 
-# 3. Estilização CSS para as fontes solicitadas
+if 'input_key' not in st.session_state:
+    st.session_state.input_key = 0
+
+# 3. Estilização CSS para as fontes
 st.markdown("""
     <style>
     .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 20px; text-align: center; margin-bottom: -15px; }
@@ -22,47 +25,52 @@ st.title("♻️ Gestão de Resíduos Empresariais")
 # 4. ENTRADA DE DADOS
 with st.expander("➕ Registrar Coleta de Resíduos", expanded=True):
     col1, col2, col3 = st.columns(3)
-    data_input = col1.date_input("Data", datetime.now())
-    tipo_input = col2.selectbox("Categoria", ["Reciclável", "Orgânico"])
-    peso_input = col3.number_input("Peso (kg)", min_value=0.0, step=0.1)
+    
+    # Usamos o st.session_state.input_key para forçar o reset dos campos
+    data_input = col1.date_input("Data", datetime.now(), key=f"date_{st.session_state.input_key}")
+    tipo_input = col2.selectbox("Categoria", ["Reciclável", "Orgânico"], key=f"tipo_{st.session_state.input_key}")
+    peso_input = col3.number_input("Peso (kg)", min_value=0.0, step=0.1, key=f"peso_{st.session_state.input_key}")
     
     if st.button("Salvar Dados"):
-        novo_registro = pd.DataFrame({
-            'Data': [pd.to_datetime(data_input)],
-            'Tipo': [tipo_input],
-            'Peso (kg)': [peso_input]
-        })
-        st.session_state.db = pd.concat([st.session_state.db, novo_registro], ignore_index=True)
-        st.success("Registrado!")
-        st.rerun()
+        if peso_input > 0:
+            novo_registro = pd.DataFrame({
+                'Data': [pd.to_datetime(data_input)],
+                'Tipo': [tipo_input],
+                'Peso (kg)': [peso_input]
+            })
+            st.session_state.db = pd.concat([st.session_state.db, novo_registro], ignore_index=True)
+            
+            # Incrementa a chave para "limpar" os campos de input
+            st.session_state.input_key += 1
+            st.success("Registrado com sucesso!")
+            st.rerun()
+        else:
+            st.warning("Por favor, insira um peso maior que zero.")
 
-# 5. GESTÃO E EXCLUSÃO DE DADOS (Apagar um por um ou tudo)
+# 5. GESTÃO E EXCLUSÃO DE DADOS
 if not st.session_state.db.empty:
     st.divider()
-    st.subheader("📋 Gestão de Registos")
+    st.subheader("📋 Gestão de Registros")
     
-    # Criar uma cópia para exibição com checkbox de seleção
     df_edicao = st.session_state.db.copy()
     df_edicao.insert(0, "Selecionar", False)
     
-    # Tabela editável para seleção de linhas
     edited_df = st.data_editor(
         df_edicao,
         column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)},
         disabled=["Data", "Tipo", "Peso (kg)"],
         hide_index=True,
-        use_container_width=True
+        use_container_width=True,
+        key="editor_tabela"
     )
 
     col_btn1, col_btn2 = st.columns(2)
     
-    # Botão para apagar selecionados
     if col_btn1.button("🗑️ Apagar Selecionados"):
         indices_para_manter = edited_df[edited_df["Selecionar"] == False].index
         st.session_state.db = st.session_state.db.iloc[indices_para_manter].reset_index(drop=True)
         st.rerun()
 
-    # Botão para apagar tudo
     if col_btn2.button("💥 Limpar Toda a Base de Dados"):
         st.session_state.db = pd.DataFrame(columns=['Data', 'Tipo', 'Peso (kg)'])
         st.rerun()
@@ -74,10 +82,8 @@ if not st.session_state.db.empty:
     df_plot = st.session_state.db.copy()
     freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
     
-    # Agrupamento para o gráfico
     resumo = df_plot.groupby([pd.Grouper(key='Data', freq=freq_map[periodo]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
     
-    # Formatação das datas para o gráfico bater com o inserido
     if periodo == "Semanal":
         resumo.index = resumo.index.strftime('Sem %U/%Y')
     elif periodo == "Mensal":
@@ -89,7 +95,7 @@ if not st.session_state.db.empty:
     st.bar_chart(resumo)
     
 else:
-    st.info("Aguardando registos para gestão e visualização.")
+    st.info("Aguardando registros para gestão e visualização.")
 
 # --- ASSINATURA FINAL ---
 st.write("---")
