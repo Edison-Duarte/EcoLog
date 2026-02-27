@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd  # Corrigido aqui
+import pandas as pd
 from datetime import datetime
 
 # 1. Configuração da página
@@ -26,8 +26,7 @@ st.title("♻️ Gestão de Resíduos Empresariais")
 with st.expander("➕ Registrar Coleta de Resíduos", expanded=True):
     col1, col2, col3 = st.columns(3)
     
-    # O uso da key dinâmica garante que os campos resetem ao salvar
-    data_input = col1.date_input("Data", datetime.now(), key=f"d_{st.session_state.input_key}")
+    data_input = col1.date_input("Data", datetime.now(), format="DD/MM/YYYY", key=f"d_{st.session_state.input_key}")
     tipo_input = col2.selectbox("Categoria", ["Reciclável", "Orgânico"], key=f"t_{st.session_state.input_key}")
     peso_input = col3.number_input("Peso (kg)", min_value=0.0, step=0.1, key=f"p_{st.session_state.input_key}")
     
@@ -39,8 +38,6 @@ with st.expander("➕ Registrar Coleta de Resíduos", expanded=True):
                 'Peso (kg)': [peso_input]
             })
             st.session_state.db = pd.concat([st.session_state.db, novo_registro], ignore_index=True)
-            
-            # Muda a key para limpar os campos na tela
             st.session_state.input_key += 1
             st.success("Registrado com sucesso!")
             st.rerun()
@@ -52,13 +49,17 @@ if not st.session_state.db.empty:
     st.divider()
     st.subheader("📋 Gestão de Registros")
     
-    df_edicao = st.session_state.db.copy()
-    df_edicao.insert(0, "Selecionar", False)
+    df_exibicao = st.session_state.db.copy()
+    # Formata a data para o padrão brasileiro na tabela de visualização
+    df_exibicao['Data'] = df_exibicao['Data'].dt.strftime('%d/%m/%Y')
+    df_exibicao.insert(0, "Selecionar", False)
     
-    # Exibe a tabela para exclusão pontual
     edited_df = st.data_editor(
-        df_edicao,
-        column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)},
+        df_exibicao,
+        column_config={
+            "Selecionar": st.column_config.CheckboxColumn(required=True),
+            "Data": st.column_config.TextColumn("Data (BR)")
+        },
         disabled=["Data", "Tipo", "Peso (kg)"],
         hide_index=True,
         use_container_width=True
@@ -82,12 +83,11 @@ if not st.session_state.db.empty:
     df_plot = st.session_state.db.copy()
     freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
     
-    # Lógica de agrupamento
     resumo = df_plot.groupby([pd.Grouper(key='Data', freq=freq_map[periodo]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
     
-    # Formatação de datas para o eixo X
+    # Formatação das datas para o padrão brasileiro no Gráfico
     if periodo == "Semanal":
-        resumo.index = resumo.index.strftime('Sem %U/%Y')
+        resumo.index = resumo.index.strftime('Sem %W/%Y') # %W usa a segunda como início da semana (padrão BR)
     elif periodo == "Mensal":
         resumo.index = resumo.index.strftime('%m/%Y')
     else:
