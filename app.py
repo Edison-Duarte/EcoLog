@@ -12,9 +12,10 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# 3. Estilização CSS para as fontes
+# 3. Estilização CSS para as fontes e assinaturas
 st.markdown("""
     <style>
+    .idea-marcia { font-family: 'Gabriola', serif; font-size: 22px; text-align: center; color: #555; margin-bottom: -10px; }
     .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 20px; text-align: center; margin-bottom: -15px; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 40px; text-align: center; color: #2E7D32; font-weight: bold; }
     </style>
@@ -50,7 +51,6 @@ if not st.session_state.db.empty:
     st.subheader("📋 Gestão de Registros")
     
     df_exibicao = st.session_state.db.copy()
-    # Formata a data para o padrão brasileiro na tabela de visualização
     df_exibicao['Data'] = df_exibicao['Data'].dt.strftime('%d/%m/%Y')
     df_exibicao.insert(0, "Selecionar", False)
     
@@ -85,9 +85,8 @@ if not st.session_state.db.empty:
     
     resumo = df_plot.groupby([pd.Grouper(key='Data', freq=freq_map[periodo]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
     
-    # Formatação das datas para o padrão brasileiro no Gráfico
     if periodo == "Semanal":
-        resumo.index = resumo.index.strftime('Sem %W/%Y') # %W usa a segunda como início da semana (padrão BR)
+        resumo.index = resumo.index.strftime('Sem %W/%Y')
     elif periodo == "Mensal":
         resumo.index = resumo.index.strftime('%m/%Y')
     else:
@@ -99,7 +98,8 @@ if not st.session_state.db.empty:
 else:
     st.info("O banco de dados está vazio. Insira dados para visualizar os relatórios.")
 
-# --- ASSINATURA FINAL ---
+# --- ASSINATURA FINAL COM CRÉDITOS ---
 st.write("---")
+st.markdown('<p class="idea-marcia">Idea of Marcia Olsever</p>', unsafe_allow_html=True)
 st.markdown('<p class="footer-aharoni">Developed by:</p>', unsafe_allow_html=True)
 st.markdown('<p class="footer-gabriola">Edison Duarte Filho®</p>', unsafe_allow_html=True)
