@@ -1,5 +1,5 @@
 import streamlit as st
-import pd as pd
+import pandas as pd  # Corrigido aqui
 from datetime import datetime
 
 # 1. Configuração da página
@@ -26,10 +26,10 @@ st.title("♻️ Gestão de Resíduos Empresariais")
 with st.expander("➕ Registrar Coleta de Resíduos", expanded=True):
     col1, col2, col3 = st.columns(3)
     
-    # Usamos o st.session_state.input_key para forçar o reset dos campos
-    data_input = col1.date_input("Data", datetime.now(), key=f"date_{st.session_state.input_key}")
-    tipo_input = col2.selectbox("Categoria", ["Reciclável", "Orgânico"], key=f"tipo_{st.session_state.input_key}")
-    peso_input = col3.number_input("Peso (kg)", min_value=0.0, step=0.1, key=f"peso_{st.session_state.input_key}")
+    # O uso da key dinâmica garante que os campos resetem ao salvar
+    data_input = col1.date_input("Data", datetime.now(), key=f"d_{st.session_state.input_key}")
+    tipo_input = col2.selectbox("Categoria", ["Reciclável", "Orgânico"], key=f"t_{st.session_state.input_key}")
+    peso_input = col3.number_input("Peso (kg)", min_value=0.0, step=0.1, key=f"p_{st.session_state.input_key}")
     
     if st.button("Salvar Dados"):
         if peso_input > 0:
@@ -40,12 +40,12 @@ with st.expander("➕ Registrar Coleta de Resíduos", expanded=True):
             })
             st.session_state.db = pd.concat([st.session_state.db, novo_registro], ignore_index=True)
             
-            # Incrementa a chave para "limpar" os campos de input
+            # Muda a key para limpar os campos na tela
             st.session_state.input_key += 1
             st.success("Registrado com sucesso!")
             st.rerun()
         else:
-            st.warning("Por favor, insira um peso maior que zero.")
+            st.warning("Por favor, insira um peso válido (maior que 0).")
 
 # 5. GESTÃO E EXCLUSÃO DE DADOS
 if not st.session_state.db.empty:
@@ -55,13 +55,13 @@ if not st.session_state.db.empty:
     df_edicao = st.session_state.db.copy()
     df_edicao.insert(0, "Selecionar", False)
     
+    # Exibe a tabela para exclusão pontual
     edited_df = st.data_editor(
         df_edicao,
         column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)},
         disabled=["Data", "Tipo", "Peso (kg)"],
         hide_index=True,
-        use_container_width=True,
-        key="editor_tabela"
+        use_container_width=True
     )
 
     col_btn1, col_btn2 = st.columns(2)
@@ -71,19 +71,21 @@ if not st.session_state.db.empty:
         st.session_state.db = st.session_state.db.iloc[indices_para_manter].reset_index(drop=True)
         st.rerun()
 
-    if col_btn2.button("💥 Limpar Toda a Base de Dados"):
+    if col_btn2.button("💥 Limpar Tudo"):
         st.session_state.db = pd.DataFrame(columns=['Data', 'Tipo', 'Peso (kg)'])
         st.rerun()
 
     # 6. VISUALIZAÇÃO DOS GRÁFICOS
     st.divider()
-    periodo = st.select_slider("Selecione a Periodicidade do Relatório:", options=["Semanal", "Mensal", "Anual"])
+    periodo = st.select_slider("Filtro de Periodicidade:", options=["Semanal", "Mensal", "Anual"])
     
     df_plot = st.session_state.db.copy()
     freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
     
+    # Lógica de agrupamento
     resumo = df_plot.groupby([pd.Grouper(key='Data', freq=freq_map[periodo]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
     
+    # Formatação de datas para o eixo X
     if periodo == "Semanal":
         resumo.index = resumo.index.strftime('Sem %U/%Y')
     elif periodo == "Mensal":
@@ -95,7 +97,7 @@ if not st.session_state.db.empty:
     st.bar_chart(resumo)
     
 else:
-    st.info("Aguardando registros para gestão e visualização.")
+    st.info("O banco de dados está vazio. Insira dados para visualizar os relatórios.")
 
 # --- ASSINATURA FINAL ---
 st.write("---")
