@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -12,13 +13,12 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# 3. Estilização CSS para as fontes e assinaturas (Ajuste Meio Termo)
+# 3. Estilização CSS para as fontes e assinaturas (Espaçamento ajustado)
 st.markdown("""
     <style>
-    .footer-container { text-align: center; margin-top: 50px; }
-    .idea-marcia { font-family: 'Gabriola', serif; font-size: 20px; color: #666; margin-bottom: 2px; }
-    .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 18px; color: #333; margin-bottom: 8px; } /* Espaçamento Meio Termo */
-    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; line-height: 1; }
+    .idea-marcia { font-family: 'Gabriola', serif; font-size: 22px; text-align: center; color: #555; margin-bottom: 5px; }
+    .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 20px; text-align: center; margin-bottom: 10px; } /* Ajustado margem inferior */
+    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 40px; text-align: center; color: #2E7D32; font-weight: bold; line-height: 1.2; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -99,15 +99,8 @@ if not st.session_state.db.empty:
 else:
     st.info("O banco de dados está vazio. Insira dados para visualizar os relatórios.")
 
-# --- ASSINATURA FINAL (Ajuste Meio Termo) ---
+# --- ASSINATURA FINAL COM ESPAÇAMENTO AJUSTADO ---
 st.write("---")
-st.markdown(
-    """
-    <div class="footer-container">
-        <p class="idea-marcia">Idea of Marcia Olsever</p>
-        <p class="footer-aharoni">Developed by:</p>
-        <p class="footer-gabriola">Edison Duarte Filho®</p>
-    </div>
-    """, 
-    unsafe_allow_html=True
-)
+st.markdown('<p class="idea-marcia">Idea of Marcia Olsever</p>', unsafe_allow_html=True)
+st.markdown('<p class="footer-aharoni">Developed by:</p>', unsafe_allow_html=True)
+st.markdown('<p class="footer-gabriola">Edison Duarte Filho®</p>', unsafe_allow_html=True)
