@@ -17,7 +17,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("♻️ Gestão de Resíduos Empresariais")
+st.title("♻️ EcoLog - Gestão de Resíduos - ICS")
 
 # 4. ENTRADA DE DADOS
 with st.expander("➕ Registrar Coleta de Resíduos", expanded=True):
@@ -68,3 +68,4 @@ else:
 st.write("---")
 st.markdown('<p class="footer-aharoni">Developed by:</p>', unsafe_allow_html=True)
 st.markdown('<p class="footer-gabriola">Edison Duarte Filho®</p>', unsafe_allow_html=True)
+
