@@ -12,32 +12,34 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# 3. Estilização CSS (Regra de Espaçamento 1.0 do Word)
+# 3. Estilização CSS (Regras de Espaçamento Misto: 1.5 e 1.0)
 st.markdown("""
     <style>
     .footer-container { 
         text-align: center; 
         margin-top: 50px; 
-        line-height: 1.0; /* Espaçamento Simples do Word */
     }
     .idea-marcia { 
         font-family: 'Gabriola', serif; 
         font-size: 20px; 
         color: #666; 
-        margin: 0; 
+        margin-bottom: 0.5em; /* Gera o efeito de 1.5 em relação à linha de baixo */
+        line-height: 1.0;
     }
     .footer-aharoni { 
         font-family: 'Aharoni', sans-serif; 
         font-size: 18px; 
         color: #333; 
-        margin: 0; 
+        margin-bottom: 0; 
+        line-height: 1.0; /* Espaçamento simples */
     }
     .footer-gabriola { 
         font-family: 'Gabriola', serif; 
         font-size: 42px; 
         color: #2E7D32; 
         font-weight: bold; 
-        margin: 0; 
+        margin-top: 0; 
+        line-height: 1.0; /* Espaçamento simples */
     }
     </style>
     """, unsafe_allow_html=True)
@@ -119,7 +121,7 @@ if not st.session_state.db.empty:
 else:
     st.info("O banco de dados está vazio.")
 
-# --- ASSINATURA FINAL (REGRAS OFFICE 1.0) ---
+# --- ASSINATURA FINAL (REGRAS OFFICE MISTAS) ---
 st.write("---")
 st.markdown(
     """
