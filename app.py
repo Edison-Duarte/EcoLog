@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -13,12 +12,33 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# 3. Estilização CSS para as fontes e assinaturas (Espaçamento ajustado)
+# 3. Estilização CSS (Regra de Espaçamento 1.0 do Word)
 st.markdown("""
     <style>
-    .idea-marcia { font-family: 'Gabriola', serif; font-size: 22px; text-align: center; color: #555; margin-bottom: 5px; }
-    .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 20px; text-align: center; margin-bottom: 10px; } /* Ajustado margem inferior */
-    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 40px; text-align: center; color: #2E7D32; font-weight: bold; line-height: 1.2; }
+    .footer-container { 
+        text-align: center; 
+        margin-top: 50px; 
+        line-height: 1.0; /* Espaçamento Simples do Word */
+    }
+    .idea-marcia { 
+        font-family: 'Gabriola', serif; 
+        font-size: 20px; 
+        color: #666; 
+        margin: 0; 
+    }
+    .footer-aharoni { 
+        font-family: 'Aharoni', sans-serif; 
+        font-size: 18px; 
+        color: #333; 
+        margin: 0; 
+    }
+    .footer-gabriola { 
+        font-family: 'Gabriola', serif; 
+        font-size: 42px; 
+        color: #2E7D32; 
+        font-weight: bold; 
+        margin: 0; 
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -44,7 +64,7 @@ with st.expander("➕ Registrar Coleta de Resíduos", expanded=True):
             st.success("Registrado com sucesso!")
             st.rerun()
         else:
-            st.warning("Por favor, insira um peso válido (maior que 0).")
+            st.warning("Por favor, insira um peso válido.")
 
 # 5. GESTÃO E EXCLUSÃO DE DADOS
 if not st.session_state.db.empty:
@@ -97,10 +117,17 @@ if not st.session_state.db.empty:
     st.bar_chart(resumo)
     
 else:
-    st.info("O banco de dados está vazio. Insira dados para visualizar os relatórios.")
+    st.info("O banco de dados está vazio.")
 
-# --- ASSINATURA FINAL COM ESPAÇAMENTO AJUSTADO ---
+# --- ASSINATURA FINAL (REGRAS OFFICE 1.0) ---
 st.write("---")
-st.markdown('<p class="idea-marcia">Idea of Marcia Olsever</p>', unsafe_allow_html=True)
-st.markdown('<p class="footer-aharoni">Developed by:</p>', unsafe_allow_html=True)
-st.markdown('<p class="footer-gabriola">Edison Duarte Filho®</p>', unsafe_allow_html=True)
+st.markdown(
+    """
+    <div class="footer-container">
+        <p class="idea-marcia">Idea of Marcia Olsever</p>
+        <p class="footer-aharoni">Developed by:</p>
+        <p class="footer-gabriola">Edison Duarte Filho®</p>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
