@@ -11,7 +11,7 @@ except ImportError:
 # 1. Configuração da página
 st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️")
 
-# 2. Inicialização do Estado (Garante que os dados sejam cumulativos durante a sessão)
+# 2. Inicialização do Estado (Aqui é onde os registros ficam acumulados)
 if 'db' not in st.session_state:
     st.session_state.db = pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
 
@@ -29,14 +29,14 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. Função para Gerar PDF (Apenas Tabela)
+# 4. Função para Gerar PDF (Apenas Tabela com todos os registros)
 def gerar_pdf(df, info_filtro):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
     pdf.cell(190, 10, "EcoLog - Gestao de Residuos".encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
     pdf.set_font("Arial", "", 10)
-    pdf.cell(190, 10, f"Relatorio de Dados - Filtros: {info_filtro}".encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
+    pdf.cell(190, 10, f"Relatorio de Registros - Filtros: {info_filtro}".encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
     pdf.ln(10)
 
     pdf.set_font("Arial", "B", 10)
@@ -47,8 +47,7 @@ def gerar_pdf(df, info_filtro):
     pdf.cell(30, 10, "Peso (kg)", 1, 1, 'C', True)
     
     pdf.set_font("Arial", "", 10)
-    # Ordenar por data para o PDF ficar organizado
-    df_sorted = df.sort_values(by='Data')
+    df_sorted = df.sort_values(by='Data', ascending=False)
     for _, row in df_sorted.iterrows():
         pdf.cell(30, 10, row['Data'].strftime('%d/%m/%Y'), 1, 0, 'C')
         pdf.cell(50, 10, str(row['Unidade']).encode('latin-1', 'replace').decode('latin-1'), 1)
@@ -60,7 +59,7 @@ def gerar_pdf(df, info_filtro):
 # Título Principal
 st.title("♻️ EcoLog - Gestão de Resíduos")
 
-# 5. ENTRADA DE DADOS (Acumula no st.session_state)
+# 5. ENTRADA DE DADOS
 with st.expander("➕ Registrar Coleta de Resíduos", expanded=True):
     col1, col2 = st.columns(2)
     unidade_in = col1.selectbox("Unidade", ["Angra dos Reis", "Guarujá"], key=f"u_{st.session_state.input_key}")
@@ -77,10 +76,10 @@ with st.expander("➕ Registrar Coleta de Resíduos", expanded=True):
                 'Tipo': [tipo_in], 
                 'Peso (kg)': [peso_in]
             })
-            # O concat garante que o dado novo se junte aos antigos (CUMULATIVO)
+            # Adiciona o novo registro à lista existente
             st.session_state.db = pd.concat([st.session_state.db, novo], ignore_index=True)
             st.session_state.input_key += 1
-            st.success("Registro Adicionado ao Acumulado!")
+            st.success("Registro adicionado com sucesso!")
             st.rerun()
 
 # 6. GESTÃO E FILTROS
@@ -89,7 +88,14 @@ if not st.session_state.db.empty:
     with st.expander("🗑️ Gestão e Exclusão de Registros"):
         df_edit = st.session_state.db.copy()
         df_edit.insert(0, "Selecionar", False)
-        tabela_editada = st.data_editor(df_edit, column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)}, disabled=["Data", "Unidade", "Tipo", "Peso (kg)"], hide_index=True, use_container_width=True, key="editor_exclusao")
+        tabela_editada = st.data_editor(
+            df_edit, 
+            column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)}, 
+            disabled=["Data", "Unidade", "Tipo", "Peso (kg)"], 
+            hide_index=True, 
+            use_container_width=True, 
+            key="editor_exclusao"
+        )
         c1, c2 = st.columns(2)
         if c1.button("🗑️ Apagar Selecionados", use_container_width=True):
             indices_manter = tabela_editada[tabela_editada["Selecionar"] == False].index
@@ -106,7 +112,8 @@ if not st.session_state.db.empty:
     unidades_f = f_col1.multiselect("Unidades:", ["Angra dos Reis", "Guarujá"], default=["Angra dos Reis", "Guarujá"])
     categorias_f = f_col2.multiselect("Categorias:", ["Reciclável", "Orgânico"], default=["Reciclável", "Orgânico"])
 
-    df_f = st.session_state.db.copy().sort_values(by='Data')
+    # Aplicar filtros para visualização e exportação
+    df_f = st.session_state.db.copy()
     if isinstance(periodo, tuple) and len(periodo) == 2:
         df_f = df_f[(df_f['Data'].dt.date >= periodo[0]) & (df_f['Data'].dt.date <= periodo[1])]
     df_f = df_f[df_f['Unidade'].isin(unidades_f)]
@@ -115,32 +122,32 @@ if not st.session_state.db.empty:
     if not df_f.empty:
         txt_f = f"{periodo[0].strftime('%d/%m/%y')} a {periodo[1].strftime('%d/%m/%y')}"
         
-        # 7. SEÇÃO DO GRÁFICO (Configurado para Crescimento Acumulado)
+        # 7. SEÇÃO DO GRÁFICO (Barras normais por período)
         st.divider()
-        st.subheader("📊 Volume Acumulado no Período")
-        p_graf = st.selectbox("Agrupar por:", options=["Diário", "Semanal", "Mensal"])
-        freq_map = {"Diário": "D", "Semanal": "W", "Mensal": "ME"}
+        st.subheader("📊 Gráfico de Volume por Período")
+        p_graf = st.select_slider("Visualizar por:", options=["Semanal", "Mensal", "Anual"])
+        freq = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
         
-        # Lógica de Acúmulo Progressivo
-        resumo = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
-        resumo_cumulativo = resumo.cumsum() # Transforma em soma acumulada
+        resumo = df_f.groupby([pd.Grouper(key='Data', freq=freq[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
+        resumo.index = resumo.index.strftime('%d/%m/%Y') if p_graf == "Semanal" else (resumo.index.strftime('%m/%Y') if p_graf == "Mensal" else resumo.index.strftime('%Y'))
         
-        resumo_cumulativo.index = resumo_cumulativo.index.strftime('%d/%m/%Y')
-        st.area_chart(resumo_cumulativo) # Area chart é excelente para dados cumulativos
+        st.bar_chart(resumo)
 
         # 8. BOTÕES DE ENVIO
-        st.write("📤 **Enviar Relatório e Resumo:**")
+        st.write("📤 **Enviar Relatório:**")
         col_r1, col_r2, col_r3 = st.columns(3)
         
+        # PDF
         pdf_b = gerar_pdf(df_f, txt_f)
         col_r1.download_button("📥 Baixar PDF (Tabela)", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
         
-        total_kg = df_f['Peso (kg)'].sum()
-        resumo_texto = f"EcoLog: Relatorio Acumulado de {txt_f}. Total coletado: {total_kg:.2f}kg."
+        # WhatsApp
+        resumo_texto = f"EcoLog: Relatorio de {txt_f}. Total: {df_f['Peso (kg)'].sum():.2f}kg."
         link_w = f"https://wa.me/?text={resumo_texto}"
         col_r2.markdown(f'<a href="{link_w}" target="_blank"><button class="btn-envio">📲 WhatsApp (Resumo)</button></a>', unsafe_allow_html=True)
         
-        link_e = f"mailto:?subject=Relatorio EcoLog&body=Segue o acumulado de gestao de residuos: {total_kg:.2f}kg no periodo de {txt_f}."
+        # E-mail
+        link_e = f"mailto:?subject=Relatorio EcoLog&body=Seguem os registros de {txt_f}."
         col_r3.markdown(f'<a href="{link_e}"><button class="btn-envio">📧 E-mail (Dados)</button></a>', unsafe_allow_html=True)
     else:
         st.warning("Nenhum dado para estes filtros.")
