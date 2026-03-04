@@ -32,7 +32,7 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# 2. CSS PARA ALINHAMENTO E ESTILIZAÇÃO DOS BOTÕES
+# 2. CSS PARA CENTRALIZAÇÃO TOTAL E ALINHAMENTO
 st.markdown("""
     <style>
     .footer-container { text-align: center; margin-top: 50px; }
@@ -41,25 +41,27 @@ st.markdown("""
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; line-height: 1.0; }
     
     /* Forçar 2 colunas lado a lado no celular para Whats/Email */
-    .row-flex {
+    [data-testid="column"] {
+        width: 100%;
+    }
+    
+    /* Container para os botões inferiores ficarem lado a lado */
+    .btn-row {
         display: flex;
         gap: 10px;
-        margin-top: 10px;
-    }
-    .col-flex {
-        flex: 1;
+        width: 100%;
     }
 
     .btn-link {
         text-decoration: none;
-        width: 100%;
+        flex: 1;
         display: block;
     }
     
     .custom-st-btn {
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: center; /* Centraliza horizontalmente */
         background-color: white;
         color: rgb(49, 51, 63);
         width: 100%;
@@ -70,6 +72,8 @@ st.markdown("""
         font-weight: 400;
         box-sizing: border-box;
         transition: border-color 0.2s, color 0.2s;
+        text-align: center;
+        padding: 0 !important; /* Remove qualquer recuo que desalinhe o texto */
     }
     
     .custom-st-btn:hover {
@@ -139,31 +143,35 @@ if not st.session_state.db.empty:
     
     st.bar_chart(resumo)
 
-    # Preparação de Texto Completo para WhatsApp/Email
+    # Preparação de Texto Completo
     total_geral = st.session_state.db['Peso (kg)'].sum()
-    txt_completo = f"♻️ *Relatório Completo EcoLog*\\n\\n"
+    txt_completo = f"♻️ *Relatorio Completo EcoLog*\\n\\n"
     df_list = st.session_state.db.sort_values('Data', ascending=False)
     for _, r in df_list.iterrows():
-        txt_completo += f"📅 {r['Data'].strftime('%d/%m/%Y')} | 📍 {r['Unidade']} | 🏷️ {r['Tipo']} | ⚖️ {r['Peso (kg)']:.2f}kg\\n"
-    txt_completo += f"\\n*Total Acumulado: {total_geral:.2f}kg*"
+        txt_completo += f"📅 {r['Data'].strftime('%d/%m/%Y')} | ⚖️ {r['Peso (kg)']:.2f}kg\\n"
+    txt_completo += f"\\n*Total: {total_geral:.2f}kg*"
 
     # 6. EXPORTAÇÃO
     st.write("📤 **Exportar Relatório Completo:**")
     
-    # Botão PDF (Destaque)
+    # Botão PDF
     pdf_bytes = gerar_pdf_completo(st.session_state.db)
     st.download_button("📥 Gerar Relatório PDF Completo", pdf_bytes, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
 
-    # Botões Whats e Email (Abaixo do PDF)
-    col_w, col_e = st.columns(2)
+    # Botões Whats e Email Lado a Lado
+    link_w = f"https://wa.me/?text={txt_completo.replace('\\n', '%0A')}"
+    link_e = f"mailto:?subject=Relatorio Completo EcoLog&body={txt_completo.replace('\\n', '%0D%0A')}"
     
-    with col_w:
-        link_w = f"https://wa.me/?text={txt_completo.replace('\\n', '%0A')}"
-        st.markdown(f'<a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a>', unsafe_allow_html=True)
-        
-    with col_e:
-        link_e = f"mailto:?subject=Relatorio Completo EcoLog&body={txt_completo.replace('\\n', '%0D%0A')}"
-        st.markdown(f'<a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a>', unsafe_allow_html=True)
+    st.markdown(f"""
+        <div class="btn-row">
+            <a href="{link_w}" target="_blank" class="btn-link">
+                <div class="custom-st-btn">📲 WhatsApp</div>
+            </a>
+            <a href="{link_e}" class="btn-link">
+                <div class="custom-st-btn">📧 E-mail</div>
+            </a>
+        </div>
+    """, unsafe_allow_html=True)
 
     # 7. GESTÃO
     with st.expander("⚙️ Gerenciar Dados"):
