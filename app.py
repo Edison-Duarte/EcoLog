@@ -29,67 +29,77 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. Função para Gerar PDF (Com correção técnica de compatibilidade)
+# 4. Função para Gerar PDF (Ajustada para evitar sobreposição)
 def gerar_pdf(df, info_filtro, resumo_grafico):
     pdf = FPDF()
     pdf.add_page()
+    
+    # Título do PDF
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(190, 10, "Relatorio EcoLog".encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
+    pdf.cell(190, 10, "EcoLog - Gestao de Residuos".encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
     pdf.set_font("Arial", "", 10)
     pdf.cell(190, 10, f"Filtros: {info_filtro}".encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
     pdf.ln(5)
 
     # Inserção do Gráfico no PDF
     if not resumo_grafico.empty:
-        fig, ax = plt.subplots(figsize=(6, 3))
+        fig, ax = plt.subplots(figsize=(6, 3.5)) # Aumentado levemente a altura para caber legenda
         resumo_grafico.plot(kind='bar', ax=ax, color=['#2E7D32', '#81C784'])
-        plt.title("Volume de Residuos")
+        plt.title("Volume de Residuos por Categoria")
+        plt.legend(loc='upper right', fontsize='small')
         plt.tight_layout()
+        
         img_buf = io.BytesIO()
         plt.savefig(img_buf, format='png', dpi=120)
         img_buf.seek(0)
+        
+        # Posiciona a imagem
         pdf.image(img_buf, x=15, y=35, w=180, type='PNG')
         plt.close(fig)
-        pdf.ln(65)
+        
+        # Espaçamento crucial para a tabela não subir:
+        pdf.ln(85) 
 
-    # Tabela
+    # Tabela de Dados
     pdf.set_font("Arial", "B", 10)
-    for col, width in zip(["Data", "Unidade", "Tipo", "Peso (kg)"], [30, 50, 50, 30]):
-        pdf.cell(width, 10, col, 1)
-    pdf.ln()
+    pdf.set_fill_color(230, 230, 230)
+    pdf.cell(30, 10, "Data", 1, 0, 'C', True)
+    pdf.cell(50, 10, "Unidade", 1, 0, 'C', True)
+    pdf.cell(50, 10, "Tipo", 1, 0, 'C', True)
+    pdf.cell(30, 10, "Peso (kg)", 1, 1, 'C', True)
+    
     pdf.set_font("Arial", "", 10)
     for _, row in df.iterrows():
-        pdf.cell(30, 10, row['Data'].strftime('%d/%m/%Y'), 1)
+        pdf.cell(30, 10, row['Data'].strftime('%d/%m/%Y'), 1, 0, 'C')
         pdf.cell(50, 10, str(row['Unidade']).encode('latin-1', 'replace').decode('latin-1'), 1)
         pdf.cell(50, 10, str(row['Tipo']).encode('latin-1', 'replace').decode('latin-1'), 1)
-        pdf.cell(30, 10, f"{row['Peso (kg)']:.2f}", 1)
-        pdf.ln()
+        pdf.cell(30, 10, f"{row['Peso (kg)']:.2f}", 1, 1, 'C')
+        
     return bytes(pdf.output())
 
-st.title("♻️ Gestão de Resíduos Empresariais")
+# Título Principal do App
+st.title("♻️ EcoLog - Gestão de Resíduos")
 
-# 4. ENTRADA DE DADOS (Visual Original)
+# 4. ENTRADA DE DADOS
 with st.expander("➕ Registrar Coleta de Resíduos", expanded=True):
     col1, col2 = st.columns(2)
     unidade_in = col1.selectbox("Unidade", ["Angra dos Reis", "Guarujá"], key=f"u_{st.session_state.input_key}")
     data_in = col2.date_input("Data", datetime.now(), format="DD/MM/YYYY", key=f"d_{st.session_state.input_key}")
+    
     col3, col4 = st.columns(2)
     tipo_in = col3.selectbox("Categoria", ["Reciclável", "Orgânico"], key=f"t_{st.session_state.input_key}")
     peso_in = col4.number_input("Peso (kg)", min_value=0.0, step=0.1, key=f"p_{st.session_state.input_key}")
     
-    # Botões Lado a Lado
-    btn_col1, btn_col2 = st.columns(2)
-    if btn_col1.button("Salvar Registro", use_container_width=True):
+    # Botão Salvar (Ocupando a linha toda agora que o Limpar saiu)
+    if st.button("Salvar Registro", use_container_width=True):
         if peso_in > 0:
             novo = pd.DataFrame({'Data': [pd.to_datetime(data_in)], 'Unidade': [unidade_in], 'Tipo': [tipo_in], 'Peso (kg)': [peso_in]})
             st.session_state.db = pd.concat([st.session_state.db, novo], ignore_index=True)
             st.session_state.input_key += 1
             st.success("Registro Salvo!")
             st.rerun()
-
-    if btn_col2.button("Limpar Campos", use_container_width=True):
-        st.session_state.input_key += 1
-        st.rerun()
+        else:
+            st.warning("Insira um peso válido.")
 
 # 5. GESTÃO E EXCLUSÃO
 if not st.session_state.db.empty:
@@ -134,19 +144,19 @@ if not st.session_state.db.empty:
         txt_f = f"{periodo[0].strftime('%d/%m/%y')} a {periodo[1].strftime('%d/%m/%y')}"
         
         # Preparação do Resumo para o PDF
-        p_graf = st.select_slider("Visualizar por:", options=["Semanal", "Mensal", "Anual"])
+        p_graf = st.select_slider("Visualizar gráfico por:", options=["Semanal", "Mensal", "Anual"])
         freq = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
         resumo = df_f.groupby([pd.Grouper(key='Data', freq=freq[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
         resumo_vis = resumo.copy()
         resumo_vis.index = resumo_vis.index.strftime('%d/%m/%Y') if p_graf == "Semanal" else (resumo_vis.index.strftime('%m/%Y') if p_graf == "Mensal" else resumo_vis.index.strftime('%Y'))
 
         pdf_b = gerar_pdf(df_f, txt_f, resumo_vis)
-        col_r1.download_button("📥 PDF Filtrado", pdf_b, "relatorio_ecolog.pdf", "application/pdf")
+        col_r1.download_button("📥 Baixar PDF", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
         
-        link_w = f"https://wa.me/?text=Relatorio EcoLog ({txt_f})"
-        col_r2.markdown(f'<a href="{link_w}" target="_blank"><button style="width:100%;height:38px;border-radius:5px;border:1px solid #ccc;cursor:pointer;">📲 WhatsApp</button></a>', unsafe_allow_html=True)
-        link_e = f"mailto:?subject=Relatorio EcoLog&body=Segue resumo."
-        col_r3.markdown(f'<a href="{link_e}"><button style="width:100%;height:38px;border-radius:5px;border:1px solid #ccc;cursor:pointer;">📧 E-mail</button></a>', unsafe_allow_html=True)
+        link_w = f"https://wa.me/?text=EcoLog: Relatorio ({txt_f})"
+        col_r2.markdown(f'<a href="{link_w}" target="_blank"><button style="width:100%;height:38px;border-radius:5px;border:1px solid #ccc;cursor:pointer;width:100%;">📲 WhatsApp</button></a>', unsafe_allow_html=True)
+        link_e = f"mailto:?subject=Relatorio EcoLog&body=Segue resumo de gestao de residuos."
+        col_r3.markdown(f'<a href="{link_e}"><button style="width:100%;height:38px;border-radius:5px;border:1px solid #ccc;cursor:pointer;width:100%;">📧 E-mail</button></a>', unsafe_allow_html=True)
 
         # GRÁFICO NA TELA
         st.divider()
