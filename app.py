@@ -31,7 +31,7 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# 2. CSS Ajustado para Mobile
+# 2. CSS Ajustado para Mobile e Estética
 st.markdown("""
     <style>
     .footer-container { text-align: center; margin-top: 50px; }
@@ -39,14 +39,8 @@ st.markdown("""
     .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 18px; color: #333; line-height: 1.0; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; line-height: 1.0; }
     
-    /* Ajuste de Botões Mobile */
     .stButton button { width: 100%; }
-    .btn-container { display: flex; flex-wrap: wrap; gap: 10px; }
-    .btn-link { 
-        flex: 1; 
-        min-width: 120px; 
-        text-decoration: none; 
-    }
+    .btn-link { text-decoration: none; }
     .custom-btn {
         width: 100%;
         height: 45px;
@@ -75,7 +69,9 @@ def gerar_pdf(df, info):
     pdf.cell(60, 10, "Tipo", 1)
     pdf.cell(40, 10, "Peso (kg)", 1, 1)
     pdf.set_font("Arial", "", 10)
-    for _, r in df.iterrows():
+    # PDF em ordem decrescente (mais recentes primeiro)
+    df_pdf = df.sort_values('Data', ascending=False)
+    for _, r in df_pdf.iterrows():
         pdf.cell(40, 10, r['Data'].strftime('%d/%m/%Y'), 1)
         pdf.cell(50, 10, str(r['Unidade'])[:20], 1)
         pdf.cell(60, 10, str(r['Tipo'])[:25], 1)
@@ -101,31 +97,39 @@ with st.expander("➕ Registrar Coleta", expanded=True):
             st.session_state.input_key += 1
             st.rerun()
 
-# 5. GRÁFICO E FILTROS
+# 5. GRÁFICO CRONOLÓGICO
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado")
 
-    # Filtros de visualização
     p_graf = st.select_slider("Visualizar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     freq = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
     
-    df_f = st.session_state.db.copy().sort_values('Data')
+    # ORDENAÇÃO CRONOLÓGICA (Importante para o gráfico não baralhar)
+    df_f = st.session_state.db.copy().sort_values('Data', ascending=True)
+    
     resumo = df_f.groupby([pd.Grouper(key='Data', freq=freq[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
-    resumo.index = resumo.index.strftime('%d/%m/%Y') if p_graf == "Semanal" else (resumo.index.strftime('%m/%Y') if p_graf == "Mensal" else resumo.index.strftime('%Y'))
+    
+    # Formatação do eixo X mantendo a ordem dos dados
+    if p_graf == "Semanal":
+        resumo.index = resumo.index.strftime('%d/%m/%Y')
+    elif p_graf == "Mensal":
+        resumo.index = resumo.index.strftime('%m/%Y')
+    else:
+        resumo.index = resumo.index.strftime('%Y')
     
     st.bar_chart(resumo)
 
-    # Preparação de Texto para Whats/Email
+    # Preparação de Texto
     total_periodo = df_f['Peso (kg)'].sum()
     txt_dados = f"Relatorio EcoLog (%s):\\n" % p_graf
     for idx, row in resumo.iterrows():
         txt_dados += f"- {idx}: {row.sum():.2f}kg\\n"
     txt_dados += f"\\nTotal Geral: {total_periodo:.2f}kg"
 
-    # 6. BOTÕES (Ajustados para Mobile)
+    # 6. BOTÕES ADAPTÁVEIS
     st.write("📤 **Exportar:**")
-    col_pdf, col_whats, col_email = st.columns([1, 1, 1])
+    col_pdf, col_whats, col_email = st.columns(3)
     
     with col_pdf:
         pdf_b = gerar_pdf(df_f, p_graf)
@@ -136,17 +140,18 @@ if not st.session_state.db.empty:
         st.markdown(f'<a href="{link_w}" target="_blank" class="btn-link"><button class="custom-btn">📲 WhatsApp</button></a>', unsafe_allow_html=True)
         
     with col_email:
-        # Email body formatado
         link_e = f"mailto:?subject=Relatorio EcoLog - {p_graf}&body={txt_dados.replace('\\n', '%0D%0A')}"
         st.markdown(f'<a href="{link_e}" class="btn-link"><button class="custom-btn">📧 E-mail</button></a>', unsafe_allow_html=True)
 
     # 7. GESTÃO
     with st.expander("⚙️ Gerenciar Dados"):
-        df_edit = st.session_state.db.copy()
+        df_edit = st.session_state.db.copy().sort_values('Data', ascending=False)
         df_edit.insert(0, "Sel", False)
         tabela = st.data_editor(df_edit, hide_index=True, use_container_width=True, key="ed")
         if st.button("🗑️ Excluir Selecionados"):
-            st.session_state.db = st.session_state.db.iloc[tabela[tabela["Sel"] == False].index].reset_index(drop=True)
+            # Encontra os índices originais para apagar corretamente
+            indices_para_manter = tabela[tabela["Sel"] == False].index
+            st.session_state.db = st.session_state.db.loc[indices_para_manter].reset_index(drop=True)
             salvar_dados(st.session_state.db)
             st.rerun()
 else:
