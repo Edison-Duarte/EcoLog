@@ -23,7 +23,7 @@ def salvar_dados(df):
     df.to_csv(DB_FILE, index=False)
 
 # 1. Configuração da página
-st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️")
+st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️", layout="centered")
 
 if 'db' not in st.session_state:
     st.session_state.db = carregar_dados()
@@ -31,7 +31,7 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# 2. CSS para deixar os botões de Link iguais ao botão de Download do Streamlit
+# 2. CSS AJUSTADO PARA ALINHAMENTO PERFEITO
 st.markdown("""
     <style>
     .footer-container { text-align: center; margin-top: 50px; }
@@ -39,7 +39,13 @@ st.markdown("""
     .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 18px; color: #333; line-height: 1.0; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; line-height: 1.0; }
     
-    /* Estilização dos botões para copiar o padrão do Streamlit */
+    /* Forçar colunas lado a lado no mobile */
+    [data-testid="column"] {
+        width: calc(33.3333% - 1rem) !important;
+        flex: 1 1 calc(33.3333% - 1rem) !important;
+        min-width: calc(33.3333% - 1rem) !important;
+    }
+
     .stDownloadButton, .btn-link {
         width: 100%;
     }
@@ -50,7 +56,7 @@ st.markdown("""
         justify-content: center;
         background-color: rgb(255, 255, 255);
         color: rgb(49, 51, 63);
-        padding: 0.25rem 0.75rem;
+        padding: 0px 0.5rem;
         width: 100%;
         border-radius: 0.5rem;
         font-weight: 400;
@@ -58,19 +64,16 @@ st.markdown("""
         text-decoration: none;
         vertical-align: middle;
         border: 1px solid rgba(49, 51, 63, 0.2);
-        height: 38.4px; /* Altura exata do botão padrão */
-        font-size: 16px;
+        height: 38.4px; 
+        font-size: 14px; /* Reduzido levemente para caber melhor em telas pequenas */
         transition: border-color 0.2s, color 0.2s;
+        box-sizing: border-box;
     }
     
     .custom-st-btn:hover {
         border-color: rgb(255, 75, 75);
         color: rgb(255, 75, 75);
         background-color: white;
-    }
-
-    .custom-st-btn:active {
-        box-shadow: rgba(0, 0, 0, 0.12) 0px 2px 4px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -142,8 +145,10 @@ if not st.session_state.db.empty:
         txt_dados += f"- {idx}: {row.sum():.2f}kg\\n"
     txt_dados += f"\\nTotal Geral: {total_periodo:.2f}kg"
 
-    # 6. BOTÕES IGUAIS (PADRÃO STREAMLIT)
+    # 6. SEÇÃO DE EXPORTAÇÃO COM ALINHAMENTO FORÇADO
     st.write("📤 **Exportar:**")
+    
+    # Criamos as 3 colunas
     col_pdf, col_whats, col_email = st.columns(3)
     
     with col_pdf:
@@ -152,11 +157,11 @@ if not st.session_state.db.empty:
     
     with col_whats:
         link_w = f"https://wa.me/?text={txt_dados.replace('\\n', '%0A')}"
-        st.markdown(f'<a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 Whats</div></a>', unsafe_allow_html=True)
         
     with col_email:
         link_e = f"mailto:?subject=Relatorio EcoLog - {p_graf}&body={txt_dados.replace('\\n', '%0D%0A')}"
-        st.markdown(f'<a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 Email</div></a>', unsafe_allow_html=True)
 
     # 7. GESTÃO
     with st.expander("⚙️ Gerenciar Dados"):
