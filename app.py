@@ -31,7 +31,7 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# 2. CSS Customizado: Botões WhatsApp/Email com fundo PRETO
+# 2. CSS para deixar os botões de Link iguais ao botão de Download do Streamlit
 st.markdown("""
     <style>
     .footer-container { text-align: center; margin-top: 50px; }
@@ -39,17 +39,17 @@ st.markdown("""
     .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 18px; color: #333; line-height: 1.0; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; line-height: 1.0; }
     
+    /* Estilização dos botões para copiar o padrão do Streamlit */
     .stDownloadButton, .btn-link {
         width: 100%;
     }
     
-    /* Estilo igual ao PDF mas com fundo PRETO para WhatsApp e Email */
-    .custom-st-btn-black {
+    .custom-st-btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        background-color: black;
-        color: white;
+        background-color: rgb(255, 255, 255);
+        color: rgb(49, 51, 63);
         padding: 0.25rem 0.75rem;
         width: 100%;
         border-radius: 0.5rem;
@@ -57,15 +57,20 @@ st.markdown("""
         line-height: 1.6;
         text-decoration: none;
         vertical-align: middle;
-        border: 1px solid black;
-        height: 38.4px;
+        border: 1px solid rgba(49, 51, 63, 0.2);
+        height: 38.4px; /* Altura exata do botão padrão */
         font-size: 16px;
-        transition: opacity 0.2s;
+        transition: border-color 0.2s, color 0.2s;
     }
     
-    .custom-st-btn-black:hover {
-        opacity: 0.8;
-        color: white;
+    .custom-st-btn:hover {
+        border-color: rgb(255, 75, 75);
+        color: rgb(255, 75, 75);
+        background-color: white;
+    }
+
+    .custom-st-btn:active {
+        box-shadow: rgba(0, 0, 0, 0.12) 0px 2px 4px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -110,7 +115,7 @@ with st.expander("➕ Registrar Coleta", expanded=True):
             st.session_state.input_key += 1
             st.rerun()
 
-# 5. GRÁFICO (Correção da Ordem Cronológica)
+# 5. GRÁFICO CRONOLÓGICO
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado")
@@ -118,28 +123,26 @@ if not st.session_state.db.empty:
     p_graf = st.select_slider("Visualizar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     freq = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
     
-    # Ordenar por data pura para garantir cronologia correta
     df_f = st.session_state.db.copy().sort_values('Data', ascending=True)
-    
-    # Agrupamento mantendo o índice como Datetime
     resumo = df_f.groupby([pd.Grouper(key='Data', freq=freq[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
     
-    # Garantir que o índice está ordenado antes de exibir
-    resumo = resumo.sort_index()
-
-    # Exibição do gráfico (o Streamlit lida melhor com objetos Datetime no eixo X para manter a ordem)
+    if p_graf == "Semanal":
+        resumo.index = resumo.index.strftime('%d/%m/%Y')
+    elif p_graf == "Mensal":
+        resumo.index = resumo.index.strftime('%m/%Y')
+    else:
+        resumo.index = resumo.index.strftime('%Y')
+    
     st.bar_chart(resumo)
 
-    # Preparação de Texto para WhatsApp/Email baseada no gráfico ordenado
+    # Preparação de Texto
     total_periodo = df_f['Peso (kg)'].sum()
     txt_dados = f"Relatorio EcoLog (%s):\\n" % p_graf
     for idx, row in resumo.iterrows():
-        # Formatação apenas para o texto da mensagem
-        data_formatada = idx.strftime('%d/%m/%Y') if p_graf == "Semanal" else (idx.strftime('%m/%Y') if p_graf == "Mensal" else idx.strftime('%Y'))
-        txt_dados += f"- {data_formatada}: {row.sum():.2f}kg\\n"
+        txt_dados += f"- {idx}: {row.sum():.2f}kg\\n"
     txt_dados += f"\\nTotal Geral: {total_periodo:.2f}kg"
 
-    # 6. BOTÕES (PDF Padrão / WhatsApp e Email PRETO)
+    # 6. BOTÕES IGUAIS (PADRÃO STREAMLIT)
     st.write("📤 **Exportar:**")
     col_pdf, col_whats, col_email = st.columns(3)
     
@@ -149,11 +152,11 @@ if not st.session_state.db.empty:
     
     with col_whats:
         link_w = f"https://wa.me/?text={txt_dados.replace('\\n', '%0A')}"
-        st.markdown(f'<a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn-black">📲 WhatsApp</div></a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a>', unsafe_allow_html=True)
         
     with col_email:
         link_e = f"mailto:?subject=Relatorio EcoLog - {p_graf}&body={txt_dados.replace('\\n', '%0D%0A')}"
-        st.markdown(f'<a href="{link_e}" class="btn-link"><div class="custom-st-btn-black">📧 E-mail</div></a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a>', unsafe_allow_html=True)
 
     # 7. GESTÃO
     with st.expander("⚙️ Gerenciar Dados"):
