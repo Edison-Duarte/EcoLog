@@ -32,7 +32,7 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# 2. CSS PARA ESTILIZAÇÃO E RODAPÉ
+# 2. CSS PARA ALINHAMENTO E ESTILIZAÇÃO DOS BOTÕES
 st.markdown("""
     <style>
     .footer-container { text-align: center; margin-top: 50px; }
@@ -40,10 +40,41 @@ st.markdown("""
     .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 18px; color: #333; line-height: 1.0; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; line-height: 1.0; }
     
-    /* Centralizar o botão de download */
-    .stDownloadButton {
+    /* Forçar 2 colunas lado a lado no celular para Whats/Email */
+    .row-flex {
         display: flex;
+        gap: 10px;
+        margin-top: 10px;
+    }
+    .col-flex {
+        flex: 1;
+    }
+
+    .btn-link {
+        text-decoration: none;
+        width: 100%;
+        display: block;
+    }
+    
+    .custom-st-btn {
+        display: flex;
+        align-items: center;
         justify-content: center;
+        background-color: white;
+        color: rgb(49, 51, 63);
+        width: 100%;
+        border-radius: 0.5rem;
+        border: 1px solid rgba(49, 51, 63, 0.2);
+        height: 38.4px; 
+        font-size: 14px;
+        font-weight: 400;
+        box-sizing: border-box;
+        transition: border-color 0.2s, color 0.2s;
+    }
+    
+    .custom-st-btn:hover {
+        border-color: rgb(255, 75, 75);
+        color: rgb(255, 75, 75);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -53,31 +84,24 @@ def gerar_pdf_completo(df):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(190, 10, "EcoLog - Relatório Completo de Resíduos", ln=True, align='C')
+    pdf.cell(190, 10, "EcoLog - Relatorio Completo de Residuos".encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
     pdf.ln(10)
-    
-    # Cabeçalho da Tabela
     pdf.set_font("Arial", "B", 10)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(35, 10, "Data", 1, 0, 'C', True)
     pdf.cell(50, 10, "Unidade", 1, 0, 'C', True)
     pdf.cell(60, 10, "Tipo", 1, 0, 'C', True)
     pdf.cell(45, 10, "Peso (kg)", 1, 1, 'C', True)
-    
-    # Dados
     pdf.set_font("Arial", "", 10)
     df_sorted = df.sort_values('Data', ascending=False)
     for _, r in df_sorted.iterrows():
         pdf.cell(35, 10, r['Data'].strftime('%d/%m/%Y'), 1, 0, 'C')
-        pdf.cell(50, 10, str(r['Unidade']), 1, 0, 'C')
-        pdf.cell(60, 10, str(r['Tipo']), 1, 0, 'C')
+        pdf.cell(50, 10, str(r['Unidade'])[:20], 1, 0, 'C')
+        pdf.cell(60, 10, str(r['Tipo'])[:25], 1, 0, 'C')
         pdf.cell(45, 10, f"{r['Peso (kg)']:.2f}", 1, 1, 'C')
-    
-    # Rodapé do PDF
     pdf.ln(5)
     pdf.set_font("Arial", "B", 11)
     pdf.cell(190, 10, f"Total Geral: {df['Peso (kg)'].sum():.2f} kg", ln=True, align='R')
-    
     return bytes(pdf.output())
 
 # 4. Interface Principal
@@ -99,40 +123,47 @@ with st.expander("➕ Registrar Coleta", expanded=True):
             st.session_state.input_key += 1
             st.rerun()
 
-# 5. GRÁFICO CRONOLÓGICO
+# 5. GRÁFICO
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado")
-
+    
     p_graf = st.select_slider("Visualizar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     freq = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
-    
-    # Ordenação correta para o gráfico
     df_f = st.session_state.db.copy().sort_values('Data', ascending=True)
     resumo = df_f.groupby([pd.Grouper(key='Data', freq=freq[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
     
-    if p_graf == "Semanal":
-        resumo.index = resumo.index.strftime('%d/%m/%Y')
-    elif p_graf == "Mensal":
-        resumo.index = resumo.index.strftime('%m/%Y')
-    else:
-        resumo.index = resumo.index.strftime('%Y')
+    if p_graf == "Semanal": resumo.index = resumo.index.strftime('%d/%m/%Y')
+    elif p_graf == "Mensal": resumo.index = resumo.index.strftime('%m/%Y')
+    else: resumo.index = resumo.index.strftime('%Y')
     
     st.bar_chart(resumo)
 
-    # 6. EXPORTAÇÃO (APENAS PDF CENTRALIZADO)
-    st.write("📤 **Exportar:**")
+    # Preparação de Texto Completo para WhatsApp/Email
+    total_geral = st.session_state.db['Peso (kg)'].sum()
+    txt_completo = f"♻️ *Relatório Completo EcoLog*\\n\\n"
+    df_list = st.session_state.db.sort_values('Data', ascending=False)
+    for _, r in df_list.iterrows():
+        txt_completo += f"📅 {r['Data'].strftime('%d/%m/%Y')} | 📍 {r['Unidade']} | 🏷️ {r['Tipo']} | ⚖️ {r['Peso (kg)']:.2f}kg\\n"
+    txt_completo += f"\\n*Total Acumulado: {total_geral:.2f}kg*"
+
+    # 6. EXPORTAÇÃO
+    st.write("📤 **Exportar Relatório Completo:**")
     
-    col_a, col_b, col_c = st.columns([1, 2, 1]) # Coluna central maior para o botão
-    with col_b:
-        pdf_bytes = gerar_pdf_completo(st.session_state.db)
-        st.download_button(
-            label="📥 Gerar Relatório PDF Completo",
-            data=pdf_bytes,
-            file_name="relatorio_completo_ecolog.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+    # Botão PDF (Destaque)
+    pdf_bytes = gerar_pdf_completo(st.session_state.db)
+    st.download_button("📥 Gerar Relatório PDF Completo", pdf_bytes, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
+
+    # Botões Whats e Email (Abaixo do PDF)
+    col_w, col_e = st.columns(2)
+    
+    with col_w:
+        link_w = f"https://wa.me/?text={txt_completo.replace('\\n', '%0A')}"
+        st.markdown(f'<a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a>', unsafe_allow_html=True)
+        
+    with col_e:
+        link_e = f"mailto:?subject=Relatorio Completo EcoLog&body={txt_completo.replace('\\n', '%0D%0A')}"
+        st.markdown(f'<a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a>', unsafe_allow_html=True)
 
     # 7. GESTÃO
     with st.expander("⚙️ Gerenciar Dados"):
@@ -145,7 +176,7 @@ if not st.session_state.db.empty:
             salvar_dados(st.session_state.db)
             st.rerun()
 else:
-    st.info("Insira dados para visualizar o gráfico e gerar o relatório.")
+    st.info("Insira dados para visualizar o gráfico e exportar.")
 
 st.write("---")
 st.markdown("""<div class="footer-container">
