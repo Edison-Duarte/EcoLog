@@ -32,7 +32,7 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# 2. CSS PARA ALINHAMENTO DE 3 BOTÕES (PDF, WHATSAPP, EMAIL)
+# 2. CSS PARA ESTILIZAÇÃO E RODAPÉ
 st.markdown("""
     <style>
     .footer-container { text-align: center; margin-top: 50px; }
@@ -40,49 +40,10 @@ st.markdown("""
     .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 18px; color: #333; line-height: 1.0; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; line-height: 1.0; }
     
-    /* Forçar as 3 colunas lado a lado no celular */
-    [data-testid="column"] {
-        width: 33% !important;
-        flex: 1 1 33% !important;
-        min-width: 33% !important;
-    }
-
-    /* Ajuste para alinhar o botão PDF nativo com os de HTML */
-    [data-testid="stDownloadButton"] {
-        margin-top: 2px !important;
-    }
-
-    .stDownloadButton button {
-        height: 38.4px !important;
-        width: 100% !important;
-        padding: 0px !important;
-        font-size: 14px !important;
-    }
-
-    .btn-link {
-        text-decoration: none;
-        width: 100%;
-        display: block;
-    }
-    
-    .custom-st-btn {
+    /* Centralizar o botão de download */
+    .stDownloadButton {
         display: flex;
-        align-items: center;
         justify-content: center;
-        background-color: white;
-        color: rgb(49, 51, 63);
-        width: 100%;
-        border-radius: 0.5rem;
-        border: 1px solid rgba(49, 51, 63, 0.2);
-        height: 38.4px; 
-        font-size: 13px; /* Fonte levemente menor para caber no mobile */
-        font-weight: 400;
-        box-sizing: border-box;
-    }
-    
-    .custom-st-btn:hover {
-        border-color: rgb(255, 75, 75);
-        color: rgb(255, 75, 75);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -138,7 +99,7 @@ with st.expander("➕ Registrar Coleta", expanded=True):
             st.session_state.input_key += 1
             st.rerun()
 
-# 5. GRÁFICO
+# 5. GRÁFICO CRONOLÓGICO
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado")
@@ -146,6 +107,7 @@ if not st.session_state.db.empty:
     p_graf = st.select_slider("Visualizar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     freq = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
     
+    # Ordenação correta para o gráfico
     df_f = st.session_state.db.copy().sort_values('Data', ascending=True)
     resumo = df_f.groupby([pd.Grouper(key='Data', freq=freq[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
     
@@ -158,29 +120,19 @@ if not st.session_state.db.empty:
     
     st.bar_chart(resumo)
 
-    # Preparação de Texto para WhatsApp/Email
-    total_periodo = df_f['Peso (kg)'].sum()
-    txt_dados = f"Relatorio EcoLog (%s):\\n" % p_graf
-    for idx, row in resumo.iterrows():
-        txt_dados += f"- {idx}: {row.sum():.2f}kg\\n"
-    txt_dados += f"\\nTotal Geral: {total_periodo:.2f}kg"
-
-    # 6. EXPORTAÇÃO (3 BOTÕES ALINHADOS: PDF, WHATSAPP, EMAIL)
+    # 6. EXPORTAÇÃO (APENAS PDF CENTRALIZADO)
     st.write("📤 **Exportar:**")
     
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
+    col_a, col_b, col_c = st.columns([1, 2, 1]) # Coluna central maior para o botão
+    with col_b:
         pdf_bytes = gerar_pdf_completo(st.session_state.db)
-        st.download_button("📥 PDF", pdf_bytes, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
-        
-    with col2:
-        link_w = f"https://wa.me/?text={txt_dados.replace('\\n', '%0A')}"
-        st.markdown(f'<a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 Whats</div></a>', unsafe_allow_html=True)
-        
-    with col3:
-        link_e = f"mailto:?subject=Relatorio EcoLog - {p_graf}&body={txt_dados.replace('\\n', '%0D%0A')}"
-        st.markdown(f'<a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 Email</div></a>', unsafe_allow_html=True)
+        st.download_button(
+            label="📥 Gerar Relatório PDF Completo",
+            data=pdf_bytes,
+            file_name="relatorio_completo_ecolog.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
 
     # 7. GESTÃO
     with st.expander("⚙️ Gerenciar Dados"):
@@ -193,7 +145,7 @@ if not st.session_state.db.empty:
             salvar_dados(st.session_state.db)
             st.rerun()
 else:
-    st.info("Insira dados para visualizar o gráfico.")
+    st.info("Insira dados para visualizar o gráfico e gerar o relatório.")
 
 st.write("---")
 st.markdown("""<div class="footer-container">
