@@ -4,10 +4,11 @@ from datetime import datetime
 import io
 import os
 
+# Tentativa de importar a biblioteca PDF
 try:
     from fpdf import FPDF
 except ImportError:
-    st.error("A biblioteca 'fpdf2' não foi encontrada.")
+    st.error("A biblioteca 'fpdf2' não foi encontrada. Instale-a com: pip install fpdf2")
 
 # --- BANCO DE DADOS LOCAL ---
 DB_FILE = "banco_de_dados.csv"
@@ -31,7 +32,7 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# 2. CSS PARA ALINHAMENTO HORIZONTAL FORÇADO (MOBILE E DESKTOP)
+# 2. CSS PARA ALINHAMENTO DE 3 BOTÕES (PDF, WHATSAPP, EMAIL)
 st.markdown("""
     <style>
     .footer-container { text-align: center; margin-top: 50px; }
@@ -39,24 +40,23 @@ st.markdown("""
     .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 18px; color: #333; line-height: 1.0; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; line-height: 1.0; }
     
-    /* Forçar o container de colunas a ser sempre horizontal */
+    /* Forçar as 3 colunas lado a lado no celular */
     [data-testid="column"] {
         width: 33% !important;
         flex: 1 1 33% !important;
         min-width: 33% !important;
     }
-    
-    /* Alinhamento de altura entre PDF (nativo) e HTML */
+
+    /* Ajuste para alinhar o botão PDF nativo com os de HTML */
     [data-testid="stDownloadButton"] {
         margin-top: 2px !important;
-        display: flex;
-        justify-content: center;
     }
 
     .stDownloadButton button {
         height: 38.4px !important;
-        padding: 0px 10px !important;
         width: 100% !important;
+        padding: 0px !important;
+        font-size: 14px !important;
     }
 
     .btn-link {
@@ -75,7 +75,7 @@ st.markdown("""
         border-radius: 0.5rem;
         border: 1px solid rgba(49, 51, 63, 0.2);
         height: 38.4px; 
-        font-size: 13px; /* Reduzido para garantir que caiba no mobile sem quebrar */
+        font-size: 13px; /* Fonte levemente menor para caber no mobile */
         font-weight: 400;
         box-sizing: border-box;
     }
@@ -87,30 +87,41 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Função PDF
-def gerar_pdf(df, info):
+# 3. Função para Gerar PDF Completo
+def gerar_pdf_completo(df):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(190, 10, "EcoLog - Relatorio".encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
+    pdf.cell(190, 10, "EcoLog - Relatório Completo de Resíduos", ln=True, align='C')
     pdf.ln(10)
+    
+    # Cabeçalho da Tabela
     pdf.set_font("Arial", "B", 10)
-    pdf.cell(40, 10, "Data", 1)
-    pdf.cell(50, 10, "Unidade", 1)
-    pdf.cell(60, 10, "Tipo", 1)
-    pdf.cell(40, 10, "Peso (kg)", 1, 1)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(35, 10, "Data", 1, 0, 'C', True)
+    pdf.cell(50, 10, "Unidade", 1, 0, 'C', True)
+    pdf.cell(60, 10, "Tipo", 1, 0, 'C', True)
+    pdf.cell(45, 10, "Peso (kg)", 1, 1, 'C', True)
+    
+    # Dados
     pdf.set_font("Arial", "", 10)
-    df_pdf = df.sort_values('Data', ascending=False)
-    for _, r in df_pdf.iterrows():
-        pdf.cell(40, 10, r['Data'].strftime('%d/%m/%Y'), 1)
-        pdf.cell(50, 10, str(r['Unidade'])[:20], 1)
-        pdf.cell(60, 10, str(r['Tipo'])[:25], 1)
-        pdf.cell(40, 10, f"{r['Peso (kg)']:.2f}", 1, 1)
+    df_sorted = df.sort_values('Data', ascending=False)
+    for _, r in df_sorted.iterrows():
+        pdf.cell(35, 10, r['Data'].strftime('%d/%m/%Y'), 1, 0, 'C')
+        pdf.cell(50, 10, str(r['Unidade']), 1, 0, 'C')
+        pdf.cell(60, 10, str(r['Tipo']), 1, 0, 'C')
+        pdf.cell(45, 10, f"{r['Peso (kg)']:.2f}", 1, 1, 'C')
+    
+    # Rodapé do PDF
+    pdf.ln(5)
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(190, 10, f"Total Geral: {df['Peso (kg)'].sum():.2f} kg", ln=True, align='R')
+    
     return bytes(pdf.output())
 
+# 4. Interface Principal
 st.title("♻️ EcoLog - Gestão de Resíduos")
 
-# 4. ENTRADA DE DADOS
 with st.expander("➕ Registrar Coleta", expanded=True):
     c1, c2 = st.columns(2)
     unidade = c1.selectbox("Unidade", ["Angra dos Reis", "Guarujá"], key=f"u{st.session_state.input_key}")
@@ -147,23 +158,22 @@ if not st.session_state.db.empty:
     
     st.bar_chart(resumo)
 
-    # Preparação de Texto
+    # Preparação de Texto para WhatsApp/Email
     total_periodo = df_f['Peso (kg)'].sum()
     txt_dados = f"Relatorio EcoLog (%s):\\n" % p_graf
     for idx, row in resumo.iterrows():
         txt_dados += f"- {idx}: {row.sum():.2f}kg\\n"
     txt_dados += f"\\nTotal Geral: {total_periodo:.2f}kg"
 
-    # 6. EXPORTAÇÃO (ALINHAMENTO RIGOROSO)
+    # 6. EXPORTAÇÃO (3 BOTÕES ALINHADOS: PDF, WHATSAPP, EMAIL)
     st.write("📤 **Exportar:**")
     
-    # Criando as colunas
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        pdf_b = gerar_pdf(df_f, p_graf)
-        st.download_button("📥 PDF", pdf_b, "relatorio.pdf", "application/pdf", use_container_width=True)
-    
+        pdf_bytes = gerar_pdf_completo(st.session_state.db)
+        st.download_button("📥 PDF", pdf_bytes, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
+        
     with col2:
         link_w = f"https://wa.me/?text={txt_dados.replace('\\n', '%0A')}"
         st.markdown(f'<a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 Whats</div></a>', unsafe_allow_html=True)
