@@ -28,14 +28,13 @@ def salvar_dados(df):
 # --- 2. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️", layout="centered")
 
-# Inicialização crucial do Session State para evitar NameError
 if 'db' not in st.session_state:
     st.session_state.db = carregar_dados()
 
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (ALINHAMENTOS E BOTÕES) ---
+# --- 3. CSS CUSTOMIZADO ---
 st.markdown("""
     <style>
     .footer-container { text-align: center; margin-top: 50px; }
@@ -43,41 +42,16 @@ st.markdown("""
     .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 18px; color: #333; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; }
     
-    /* Container para botões Whats/Email lado a lado */
-    .btn-row {
-        display: flex;
-        gap: 10px;
-        width: 100%;
-        margin-top: 10px;
-    }
-    .btn-link {
-        text-decoration: none;
-        flex: 1;
-    }
+    .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
+    .btn-link { text-decoration: none; flex: 1; }
     .custom-st-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: white;
-        color: rgb(49, 51, 63);
-        width: 100%;
-        border-radius: 0.5rem;
-        border: 1px solid rgba(49, 51, 63, 0.2);
-        height: 38.4px; 
-        font-size: 14px;
-        font-weight: 400;
-        transition: border-color 0.2s;
-        text-align: center;
+        display: flex; align-items: center; justify-content: center;
+        background-color: white; color: rgb(49, 51, 63);
+        width: 100%; border-radius: 0.5rem; border: 1px solid rgba(49, 51, 63, 0.2);
+        height: 38.4px; font-size: 14px; font-weight: 400; text-align: center;
     }
-    .custom-st-btn:hover {
-        border-color: rgb(255, 75, 75);
-        color: rgb(255, 75, 75);
-    }
-    /* Ajuste fino para o botão PDF nativo */
-    [data-testid="stDownloadButton"] {
-        display: flex;
-        justify-content: center;
-    }
+    .custom-st-btn:hover { border-color: rgb(255, 75, 75); color: rgb(255, 75, 75); }
+    [data-testid="stDownloadButton"] { display: flex; justify-content: center; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -86,7 +60,7 @@ def gerar_pdf_completo(df):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(190, 10, "EcoLog - Relatorio Completo de Residuos", ln=True, align='C')
+    pdf.cell(190, 10, "EcoLog - Relatorio de Residuos", ln=True, align='C')
     pdf.ln(10)
     pdf.set_font("Arial", "B", 10)
     pdf.set_fill_color(240, 240, 240)
@@ -121,24 +95,22 @@ with st.expander("➕ Registrar Coleta", expanded=True):
             st.session_state.input_key += 1
             st.rerun()
 
-# --- 6. GRÁFICO DINÂMICO COM FILTROS ---
+# --- 6. GRÁFICO DINÂMICO ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
     
     f_col1, f_col2 = st.columns(2)
-    
     with f_col1:
         u_ops = sorted(st.session_state.db['Unidade'].unique())
         u_sel = st.multiselect("📍 Unidades:", u_ops, default=u_ops)
-        
     with f_col2:
         t_ops = sorted(st.session_state.db['Tipo'].unique())
         t_sel = st.multiselect("♻️ Materiais:", t_ops, default=t_ops)
         
     p_graf = st.select_slider("Período:", options=["Semanal", "Mensal", "Anual"])
     
-    # Filtragem
+    # DATAFRAME FILTRADO (Base para gráfico e mensagens)
     df_f = st.session_state.db[
         (st.session_state.db['Unidade'].isin(u_sel)) & 
         (st.session_state.db['Tipo'].isin(t_sel))
@@ -155,18 +127,26 @@ if not st.session_state.db.empty:
         
         st.bar_chart(resumo)
 
-        # --- 7. EXPORTAÇÃO ---
-        st.write("📤 **Exportar Relatório Completo:**")
-        pdf_b = gerar_pdf_completo(st.session_state.db)
-        st.download_button("📥 Gerar Relatório PDF Completo", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
+        # --- 7. EXPORTAÇÃO BASEADA NO FILTRO ---
+        st.write("📤 **Exportar Seleção Atual:**")
+        
+        # O PDF continua gerando o relatório completo (ou pode ser df_f se preferir)
+        pdf_b = gerar_pdf_completo(df_f) 
+        st.download_button("📥 Gerar Relatório PDF (Filtrado)", pdf_b, "relatorio_filtrado.pdf", "application/pdf", use_container_width=True)
 
-        # Preparação Texto Whats/Email
-        txt = f"♻️ *Relatorio EcoLog*\\n"
-        for _, r in st.session_state.db.sort_values('Data', ascending=False).head(10).iterrows():
-            txt += f"📅 {r['Data'].strftime('%d/%m/%Y')} | {r['Unidade']} | {r['Peso (kg)']}kg\\n"
+        # PREPARAÇÃO DO TEXTO FILTRADO
+        total_kg = df_f['Peso (kg)'].sum()
+        txt = f"♻️ *Relatório EcoLog - Filtrado*\\n"
+        txt += f"Filtros: {', '.join(u_sel)} | {', '.join(t_sel)}\\n\\n"
+        
+        # Adiciona as últimas 15 linhas da seleção para não estourar o limite de caracteres do link
+        for _, r in df_f.sort_values('Data', ascending=False).head(15).iterrows():
+            txt += f"• {r['Data'].strftime('%d/%m/%Y')} | {r['Unidade']} | {r['Tipo']} | {r['Peso (kg)']}kg\\n"
+        
+        txt += f"\\n*Total da Seleção: {total_kg:.2f} kg*"
         
         link_w = f"https://wa.me/?text={txt.replace('\\n', '%0A')}"
-        link_e = f"mailto:?subject=Relatorio EcoLog&body={txt.replace('\\n', '%0D%0A')}"
+        link_e = f"mailto:?subject=Relatorio EcoLog Filtrado&body={txt.replace('\\n', '%0D%0A')}"
 
         st.markdown(f"""
             <div class="btn-row">
@@ -174,6 +154,8 @@ if not st.session_state.db.empty:
                 <a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a>
             </div>
         """, unsafe_allow_html=True)
+    else:
+        st.warning("Nenhum dado encontrado para os filtros selecionados.")
 
     # --- 8. GESTÃO ---
     with st.expander("⚙️ Gerenciar Dados"):
