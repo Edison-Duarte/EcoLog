@@ -31,7 +31,7 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# 2. CSS PARA CENTRALIZAÇÃO E ALINHAMENTO HORIZONTAL PERFEITO
+# 2. CSS PARA ALINHAMENTO HORIZONTAL FORÇADO (MOBILE E DESKTOP)
 st.markdown("""
     <style>
     .footer-container { text-align: center; margin-top: 50px; }
@@ -39,43 +39,50 @@ st.markdown("""
     .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 18px; color: #333; line-height: 1.0; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; line-height: 1.0; }
     
-    /* Forçar 3 colunas lado a lado no celular */
+    /* Forçar o container de colunas a ser sempre horizontal */
     [data-testid="column"] {
-        width: calc(33.3333% - 1rem) !important;
-        flex: 1 1 calc(33.3333% - 1rem) !important;
-        min-width: calc(33.3333% - 1rem) !important;
+        width: 33% !important;
+        flex: 1 1 33% !important;
+        min-width: 33% !important;
+    }
+    
+    /* Alinhamento de altura entre PDF (nativo) e HTML */
+    [data-testid="stDownloadButton"] {
+        margin-top: 2px !important;
+        display: flex;
+        justify-content: center;
     }
 
-    .stDownloadButton, .btn-link {
+    .stDownloadButton button {
+        height: 38.4px !important;
+        padding: 0px 10px !important;
+        width: 100% !important;
+    }
+
+    .btn-link {
+        text-decoration: none;
         width: 100%;
         display: block;
     }
     
-    /* Botão customizado centralizado e com estilo Streamlit */
     .custom-st-btn {
         display: flex;
         align-items: center;
-        justify-content: center; /* Centraliza horizontalmente */
-        text-align: center;      /* Garante centralização do texto */
-        background-color: rgb(255, 255, 255);
+        justify-content: center;
+        background-color: white;
         color: rgb(49, 51, 63);
-        padding: 0px !important; /* Remove paddings que podem desalinharm */
         width: 100%;
         border-radius: 0.5rem;
-        font-weight: 400;
-        line-height: 1.6;
-        text-decoration: none;
         border: 1px solid rgba(49, 51, 63, 0.2);
         height: 38.4px; 
-        font-size: 14px;
-        transition: border-color 0.2s, color 0.2s;
+        font-size: 13px; /* Reduzido para garantir que caiba no mobile sem quebrar */
+        font-weight: 400;
         box-sizing: border-box;
     }
     
     .custom-st-btn:hover {
         border-color: rgb(255, 75, 75);
         color: rgb(255, 75, 75);
-        background-color: white;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -147,19 +154,21 @@ if not st.session_state.db.empty:
         txt_dados += f"- {idx}: {row.sum():.2f}kg\\n"
     txt_dados += f"\\nTotal Geral: {total_periodo:.2f}kg"
 
-    # 6. EXPORTAÇÃO (3 COLUNAS ALINHADAS)
+    # 6. EXPORTAÇÃO (ALINHAMENTO RIGOROSO)
     st.write("📤 **Exportar:**")
-    col_pdf, col_whats, col_email = st.columns(3)
     
-    with col_pdf:
+    # Criando as colunas
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
         pdf_b = gerar_pdf(df_f, p_graf)
         st.download_button("📥 PDF", pdf_b, "relatorio.pdf", "application/pdf", use_container_width=True)
     
-    with col_whats:
+    with col2:
         link_w = f"https://wa.me/?text={txt_dados.replace('\\n', '%0A')}"
         st.markdown(f'<a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 Whats</div></a>', unsafe_allow_html=True)
         
-    with col_email:
+    with col3:
         link_e = f"mailto:?subject=Relatorio EcoLog - {p_graf}&body={txt_dados.replace('\\n', '%0D%0A')}"
         st.markdown(f'<a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 Email</div></a>', unsafe_allow_html=True)
 
