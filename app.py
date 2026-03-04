@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 # Tentativa de importar a biblioteca PDF
@@ -82,71 +82,93 @@ st.title("♻️ EcoLog - Gestão de Resíduos")
 with st.expander("➕ Registrar Coleta", expanded=True):
     c1, c2 = st.columns(2)
     unidade = c1.selectbox("Unidade", ["Angra dos Reis", "Guarujá"], key=f"u{st.session_state.input_key}")
-    data = c2.date_input("Data", datetime.now(), format="DD/MM/YYYY", key=f"d{st.session_state.input_key}")
+    data_input = c2.date_input("Data", datetime.now(), format="DD/MM/YYYY", key=f"d{st.session_state.input_key}")
     c3, c4 = st.columns(2)
     tipo = c3.selectbox("Tipo", ["Reciclável", "Orgânico"], key=f"t{st.session_state.input_key}")
     peso = c4.number_input("Peso (kg)", min_value=0.0, step=0.1, key=f"p{st.session_state.input_key}")
     
     if st.button("💾 Salvar Registro", use_container_width=True):
         if peso > 0:
-            novo = pd.DataFrame({'Data': [pd.to_datetime(data)], 'Unidade': [unidade], 'Tipo': [tipo], 'Peso (kg)': [peso]})
+            novo = pd.DataFrame({'Data': [pd.to_datetime(data_input)], 'Unidade': [unidade], 'Tipo': [tipo], 'Peso (kg)': [peso]})
             st.session_state.db = pd.concat([st.session_state.db, novo], ignore_index=True)
             salvar_dados(st.session_state.db)
             st.session_state.input_key += 1
             st.rerun()
 
-# --- 6. GRÁFICO DINÂMICO ---
+# --- 6. GRÁFICO DINÂMICO COM FILTRO DE PERÍODO ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
     
-    f_col1, f_col2 = st.columns(2)
+    # NOVOS FILTROS EM 3 COLUNAS
+    f_col1, f_col2, f_col3 = st.columns([1, 1, 1.2]) # Coluna da data um pouco maior
+    
     with f_col1:
         u_ops = sorted(st.session_state.db['Unidade'].unique())
         u_sel = st.multiselect("📍 Unidades:", u_ops, default=u_ops)
+    
     with f_col2:
         t_ops = sorted(st.session_state.db['Tipo'].unique())
         t_sel = st.multiselect("♻️ Materiais:", t_ops, default=t_ops)
         
-    p_graf = st.select_slider("Período:", options=["Semanal", "Mensal", "Anual"])
+    with f_col3:
+        # Filtro de Intervalo de Datas
+        data_min = st.session_state.db['Data'].min().date()
+        data_max = st.session_state.db['Data'].max().date()
+        periodo_sel = st.date_input(
+            "📅 Período:",
+            value=(data_min, data_max),
+            min_value=data_min,
+            max_value=data_max
+        )
+
+    # Seletor de visualização temporal (Agrupamento)
+    p_graf = st.select_slider("Agrupar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     
-    # DATAFRAME FILTRADO (Base para gráfico e mensagens)
-    df_f = st.session_state.db[
-        (st.session_state.db['Unidade'].isin(u_sel)) & 
-        (st.session_state.db['Tipo'].isin(t_sel))
-    ].copy()
-    
+    # LÓGICA DE FILTRAGEM (DATA + UNIDADE + TIPO)
+    if len(periodo_sel) == 2:
+        start_date, end_date = periodo_sel
+        mask = (
+            (st.session_state.db['Data'].dt.date >= start_date) & 
+            (st.session_state.db['Data'].dt.date <= end_date) &
+            (st.session_state.db['Unidade'].isin(u_sel)) & 
+            (st.session_state.db['Tipo'].isin(t_sel))
+        )
+        df_f = st.session_state.db.loc[mask].copy()
+    else:
+        # Enquanto o usuário clica apenas na data de início, mostra vazio ou o DB original
+        df_f = pd.DataFrame()
+
     if not df_f.empty:
         df_f = df_f.sort_values('Data')
         freq = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
         resumo = df_f.groupby([pd.Grouper(key='Data', freq=freq[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
         
+        # Formatação do eixo X
         if p_graf == "Semanal": resumo.index = resumo.index.strftime('%d/%m/%Y')
         elif p_graf == "Mensal": resumo.index = resumo.index.strftime('%m/%Y')
         else: resumo.index = resumo.index.strftime('%Y')
         
         st.bar_chart(resumo)
 
-        # --- 7. EXPORTAÇÃO BASEADA NO FILTRO ---
+        # --- 7. EXPORTAÇÃO BASEADA NO FILTRO TOTAL ---
         st.write("📤 **Exportar Seleção Atual:**")
         
-        # O PDF continua gerando o relatório completo (ou pode ser df_f se preferir)
         pdf_b = gerar_pdf_completo(df_f) 
-        st.download_button("📥 Gerar Relatório PDF (Filtrado)", pdf_b, "relatorio_filtrado.pdf", "application/pdf", use_container_width=True)
+        st.download_button("📥 Gerar PDF do Período", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
 
-        # PREPARAÇÃO DO TEXTO FILTRADO
         total_kg = df_f['Peso (kg)'].sum()
-        txt = f"♻️ *Relatório EcoLog - Filtrado*\\n"
-        txt += f"Filtros: {', '.join(u_sel)} | {', '.join(t_sel)}\\n\\n"
+        txt = f"♻️ *Relatório EcoLog*\\n"
+        txt += f"Período: {start_date.strftime('%d/%m/%y')} a {end_date.strftime('%d/%m/%y')}\\n"
+        txt += f"Unidades: {', '.join(u_sel)}\\n\\n"
         
-        # Adiciona as últimas 15 linhas da seleção para não estourar o limite de caracteres do link
-        for _, r in df_f.sort_values('Data', ascending=False).head(15).iterrows():
-            txt += f"• {r['Data'].strftime('%d/%m/%Y')} | {r['Unidade']} | {r['Tipo']} | {r['Peso (kg)']}kg\\n"
+        for _, r in df_f.sort_values('Data', ascending=False).head(10).iterrows():
+            txt += f"• {r['Data'].strftime('%d/%m/%y')} | {r['Unidade']} | {r['Peso (kg)']}kg\\n"
         
-        txt += f"\\n*Total da Seleção: {total_kg:.2f} kg*"
+        txt += f"\\n*Total Filtrado: {total_kg:.2f} kg*"
         
         link_w = f"https://wa.me/?text={txt.replace('\\n', '%0A')}"
-        link_e = f"mailto:?subject=Relatorio EcoLog Filtrado&body={txt.replace('\\n', '%0D%0A')}"
+        link_e = f"mailto:?subject=Relatorio EcoLog&body={txt.replace('\\n', '%0D%0A')}"
 
         st.markdown(f"""
             <div class="btn-row">
@@ -155,7 +177,7 @@ if not st.session_state.db.empty:
             </div>
         """, unsafe_allow_html=True)
     else:
-        st.warning("Nenhum dado encontrado para os filtros selecionados.")
+        st.warning("Selecione um intervalo de datas válido (início e fim) nos filtros acima.")
 
     # --- 8. GESTÃO ---
     with st.expander("⚙️ Gerenciar Dados"):
