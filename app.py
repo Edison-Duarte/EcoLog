@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 try:
     from fpdf import FPDF
 except ImportError:
-    st.error("A biblioteca 'fpdf' não foi encontrada. Verifique o requirements.txt.")
+    st.error("A biblioteca 'fpdf2' não foi encontrada. Verifique o requirements.txt.")
 
 # 1. Configuração da página
 st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️", layout="wide")
@@ -35,16 +35,15 @@ def gerar_pdf(df_filtrado, info_periodo, resumo_grafico):
     pdf.add_page()
     
     # Título
-    pdf.set_font("Arial", "B", 18)
-    pdf.cell(190, 10, "Relatorio de Gestao de Residuos - EcoLog".encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
-    pdf.set_font("Arial", "", 11)
-    pdf.cell(190, 10, f"Periodo: {info_periodo}".encode('latin-1', 'replace').decode('latin-1'), ln=True, align='C')
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.cell(190, 10, "Relatorio de Gestao de Residuos - EcoLog", ln=True, align='C')
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(190, 10, f"Periodo: {info_periodo}", ln=True, align='C')
     pdf.ln(5)
 
     # Inserindo o Gráfico no PDF
     if not resumo_grafico.empty:
         fig, ax = plt.subplots(figsize=(6, 3))
-        # Cores: Verde Escuro para Reciclável, Verde Claro para Orgânico
         resumo_grafico.plot(kind='bar', ax=ax, color=['#2E7D32', '#81C784'])
         plt.title("Volume por Categoria (kg)")
         plt.xticks(rotation=30)
@@ -54,28 +53,29 @@ def gerar_pdf(df_filtrado, info_periodo, resumo_grafico):
         plt.savefig(img_buf, format='png', dpi=150)
         img_buf.seek(0)
         
-        # Correção do erro AttributeError: especificando o type='PNG'
-        pdf.image(img_buf, x=15, y=40, w=180, type='PNG') 
+        # Uso de PNG para evitar erro de leitura de cabeçalho
+        pdf.image(img_buf, x=15, y=40, w=180) 
         
         plt.close(fig)
-        pdf.ln(75) # Espaço para o gráfico não sobrepor a tabela
+        pdf.ln(75) 
 
     # Tabela de Dados
-    pdf.set_font("Arial", "B", 10)
+    pdf.set_font("Helvetica", "B", 10)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(35, 10, "Data", 1, 0, 'C', True)
     pdf.cell(55, 10, "Unidade", 1, 0, 'C', True)
     pdf.cell(55, 10, "Tipo", 1, 0, 'C', True)
     pdf.cell(45, 10, "Peso (kg)", 1, 1, 'C', True)
     
-    pdf.set_font("Arial", "", 10)
+    pdf.set_font("Helvetica", "", 10)
     for _, row in df_filtrado.iterrows():
         pdf.cell(35, 10, row['Data'].strftime('%d/%m/%Y'), 1, 0, 'C')
-        pdf.cell(55, 10, row['Unidade'].encode('latin-1', 'replace').decode('latin-1'), 1)
-        pdf.cell(55, 10, row['Tipo'].encode('latin-1', 'replace').decode('latin-1'), 1)
+        pdf.cell(55, 10, str(row['Unidade']), 1)
+        pdf.cell(55, 10, str(row['Tipo']), 1)
         pdf.cell(45, 10, f"{row['Peso (kg)']:.2f}", 1, 1, 'C')
         
-    return pdf.output(dest='S').encode('latin-1')
+    # RETORNO CORRIGIDO PARA FPDF2
+    return bytes(pdf.output())
 
 st.title("♻️ EcoLog - Sistema de Gestão")
 
@@ -131,7 +131,6 @@ if not st.session_state.db.empty:
     unidades_f = f_c2.multiselect("Unidades:", ["Angra dos Reis", "Guarujá"], default=["Angra dos Reis", "Guarujá"])
     categorias_f = f_c3.multiselect("Categorias:", ["Reciclável", "Orgânico"], default=["Reciclável", "Orgânico"])
 
-    # Aplicar Filtros
     df_f = st.session_state.db.copy()
     if isinstance(periodo_f, tuple) and len(periodo_f) == 2:
         df_f = df_f[(df_f['Data'].dt.date >= periodo_f[0]) & (df_f['Data'].dt.date <= periodo_f[1])]
@@ -139,7 +138,6 @@ if not st.session_state.db.empty:
     df_f = df_f[df_f['Tipo'].isin(categorias_f)]
 
     if not df_f.empty:
-        # Preparar Gráfico
         p_escolha = st.select_slider("Visualização Temporal:", options=["Semanal", "Mensal", "Anual"])
         f_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
         resumo = df_f.groupby([pd.Grouper(key='Data', freq=f_map[p_escolha]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
@@ -150,7 +148,7 @@ if not st.session_state.db.empty:
         
         info_txt = f"{periodo_f[0].strftime('%d/%m/%y')} a {periodo_f[1].strftime('%d/%m/%y')}"
         
-        # Chamada da função PDF corrigida
+        # Geração de PDF
         pdf_bytes = gerar_pdf(df_f, info_txt, resumo)
         
         exp_c1.download_button("📥 Baixar PDF com Gráfico", pdf_bytes, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
