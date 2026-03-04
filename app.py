@@ -55,28 +55,18 @@ with st.expander("➕ Registrar Coleta de Resíduos", expanded=True):
     col1, col2 = st.columns(2)
     unidade_in = col1.selectbox("Unidade", ["Angra dos Reis", "Guarujá"], key=f"u_{st.session_state.input_key}")
     data_in = col2.date_input("Data", datetime.now(), format="DD/MM/YYYY", key=f"d_{st.session_state.input_key}")
-    
     col3, col4 = st.columns(2)
     tipo_in = col3.selectbox("Categoria", ["Reciclável", "Orgânico"], key=f"t_{st.session_state.input_key}")
     peso_in = col4.number_input("Peso (kg)", min_value=0.0, step=0.1, key=f"p_{st.session_state.input_key}")
-    
-    btn_col1, btn_col2 = st.columns(2)
-    
-    if btn_col1.button("💾 Salvar Registro", use_container_width=True):
+    if st.button("Salvar Registro"):
         if peso_in > 0:
             novo = pd.DataFrame({'Data': [pd.to_datetime(data_in)], 'Unidade': [unidade_in], 'Tipo': [tipo_in], 'Peso (kg)': [peso_in]})
             st.session_state.db = pd.concat([st.session_state.db, novo], ignore_index=True)
-            st.session_state.input_key += 1 # Reset automático após salvar
+            st.session_state.input_key += 1
             st.success("Registro Salvo!")
             st.rerun()
-        else:
-            st.error("Insira um peso maior que zero.")
 
-    if btn_col2.button("🧹 Limpar Campos", use_container_width=True):
-        st.session_state.input_key += 1 # Altera a chave para resetar os campos
-        st.rerun()
-
-# 5. GESTÃO E EXCLUSÃO
+# 5. GESTÃO E EXCLUSÃO (Apagar um por um ou tudo)
 if not st.session_state.db.empty:
     st.divider()
     with st.expander("🗑️ Gestão e Exclusão de Registros"):
@@ -99,7 +89,7 @@ if not st.session_state.db.empty:
             st.session_state.db = pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
             st.rerun()
 
-    # 6. FILTROS AVANÇADOS
+    # 6. FILTROS AVANÇADOS (Para Gráficos e PDF)
     st.subheader("🔍 Filtros de Relatório")
     min_d, max_d = st.session_state.db['Data'].min().date(), st.session_state.db['Data'].max().date()
     periodo = st.date_input("Período:", value=(min_d, max_d), format="DD/MM/YYYY")
