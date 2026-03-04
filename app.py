@@ -12,7 +12,7 @@ except ImportError:
 # 1. Configuração da página
 st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️", layout="wide")
 
-# 2. Inicialização do Estado (Banco de dados temporário)
+# 2. Inicialização do Estado
 if 'db' not in st.session_state:
     st.session_state.db = pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
 
@@ -29,7 +29,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. Função para Gerar PDF com Gráfico
+# 4. Função para Gerar PDF com Gráfico (CORRIGIDA)
 def gerar_pdf(df_filtrado, info_periodo, resumo_grafico):
     pdf = FPDF()
     pdf.add_page()
@@ -53,9 +53,12 @@ def gerar_pdf(df_filtrado, info_periodo, resumo_grafico):
         img_buf = io.BytesIO()
         plt.savefig(img_buf, format='png', dpi=150)
         img_buf.seek(0)
-        pdf.image(img_buf, x=15, y=40, w=180)
+        
+        # Correção do erro AttributeError: especificando o type='PNG'
+        pdf.image(img_buf, x=15, y=40, w=180, type='PNG') 
+        
         plt.close(fig)
-        pdf.ln(70) # Espaço para o gráfico
+        pdf.ln(75) # Espaço para o gráfico não sobrepor a tabela
 
     # Tabela de Dados
     pdf.set_font("Arial", "B", 10)
@@ -86,27 +89,25 @@ with st.expander("➕ Registrar Nova Coleta", expanded=True):
     tipo_in = c3.selectbox("Categoria do Resíduo", ["Reciclável", "Orgânico"], key=f"t_{st.session_state.input_key}")
     peso_in = c4.number_input("Peso Total (kg)", min_value=0.0, step=0.1, format="%.2f", key=f"p_{st.session_state.input_key}")
     
-    # Botões de Ação
     b1, b2 = st.columns(2)
     if b1.button("💾 Salvar Registro", use_container_width=True, type="primary"):
         if peso_in > 0:
             novo_d = pd.DataFrame({'Data': [pd.to_datetime(data_in)], 'Unidade': [unidade_in], 'Tipo': [tipo_in], 'Peso (kg)': [peso_in]})
             st.session_state.db = pd.concat([st.session_state.db, novo_d], ignore_index=True)
-            st.session_state.input_key += 1 # Reseta campos
-            st.success("Dados salvos com sucesso!")
+            st.session_state.input_key += 1 
+            st.success("Dados salvos!")
             st.rerun()
         else:
-            st.warning("Por favor, insira um peso válido.")
+            st.warning("Insira um peso válido.")
             
     if b2.button("🧹 Limpar Campos", use_container_width=True):
         st.session_state.input_key += 1
         st.rerun()
 
-# 6. GESTÃO, FILTROS E RELATÓRIOS
+# 6. GESTÃO E FILTROS
 if not st.session_state.db.empty:
     st.divider()
     
-    # Expander de Exclusão
     with st.expander("🗑️ Editar ou Excluir Lançamentos"):
         df_edit = st.session_state.db.copy()
         df_edit.insert(0, "Selecionar", False)
@@ -121,7 +122,6 @@ if not st.session_state.db.empty:
             st.session_state.db = pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
             st.rerun()
 
-    # Filtros Avançados
     st.subheader("🔍 Filtros e Exportação")
     f_c1, f_c2, f_c3 = st.columns([2, 1, 1])
     
@@ -145,20 +145,21 @@ if not st.session_state.db.empty:
         resumo = df_f.groupby([pd.Grouper(key='Data', freq=f_map[p_escolha]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
         resumo.index = resumo.index.strftime('%d/%m/%Y') if p_escolha == "Semanal" else (resumo.index.strftime('%m/%Y') if p_escolha == "Mensal" else resumo.index.strftime('%Y'))
 
-        # Botões de Relatório
         st.write("---")
         exp_c1, exp_c2, exp_c3 = st.columns(3)
         
         info_txt = f"{periodo_f[0].strftime('%d/%m/%y')} a {periodo_f[1].strftime('%d/%m/%y')}"
+        
+        # Chamada da função PDF corrigida
         pdf_bytes = gerar_pdf(df_f, info_txt, resumo)
         
-        exp_c1.download_button("📥 Gerar PDF Completo", pdf_bytes, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
+        exp_c1.download_button("📥 Baixar PDF com Gráfico", pdf_bytes, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
         
-        link_w = f"https://wa.me/?text=EcoLog: Relatório consolidado ({info_txt})"
-        exp_c2.markdown(f'<a href="{link_w}" target="_blank"><button style="width:100%;height:38px;border-radius:5px;border:1px solid #ccc;cursor:pointer;">📲 Compartilhar WhatsApp</button></a>', unsafe_allow_html=True)
+        link_w = f"https://wa.me/?text=EcoLog: Relatorio consolidado ({info_txt})"
+        exp_c2.markdown(f'<a href="{link_w}" target="_blank"><button style="width:100%;height:38px;border-radius:5px;border:1px solid #ccc;cursor:pointer;">📲 WhatsApp</button></a>', unsafe_allow_html=True)
         
-        link_e = f"mailto:?subject=Relatorio EcoLog&body=Seguem dados de gestao de residuos de {info_txt}."
-        exp_c3.markdown(f'<a href="{link_e}"><button style="width:100%;height:38px;border-radius:5px;border:1px solid #ccc;cursor:pointer;">📧 Enviar por E-mail</button></a>', unsafe_allow_html=True)
+        link_e = f"mailto:?subject=Relatorio EcoLog&body=Seguem dados de gestao de residuos."
+        exp_c3.markdown(f'<a href="{link_e}"><button style="width:100%;height:38px;border-radius:5px;border:1px solid #ccc;cursor:pointer;">📧 E-mail</button></a>', unsafe_allow_html=True)
 
         st.subheader("📊 Visualização Gráfica")
         st.bar_chart(resumo)
