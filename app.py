@@ -53,12 +53,12 @@ st.markdown("""
         color: #666; 
     }
     .footer-label { 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-        font-size: 13px; /* Fonte reduzida */
+        font-family: 'Aharoni', sans-serif; /* Retorno para Aharoni */
+        font-size: 13px; /* Tamanho reduzido conforme solicitado */
         color: #555; 
         text-transform: uppercase;
         margin-top: 4px !important;
-        letter-spacing: 0.5px;
+        letter-spacing: 1px;
     }
     .footer-gabriola { 
         font-family: 'Gabriola', serif; 
@@ -194,7 +194,7 @@ if not st.session_state.db.empty:
 else:
     st.info("Insira dados para habilitar as ferramentas.")
 
-# --- RODAPÉ ATUALIZADO (FONTE NOVA E MENOR) ---
+# --- RODAPÉ ATUALIZADO (AHARONI COMPACTA) ---
 st.write("---")
 st.markdown("""
     <div class="footer-container">
