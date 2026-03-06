@@ -34,7 +34,7 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (RODAPÉ E BOTÕES) ---
+# --- 3. CSS CUSTOMIZADO (FOCO NA BODONI MT E RODAPÉ) ---
 st.markdown("""
     <style>
     .footer-container { 
@@ -53,12 +53,11 @@ st.markdown("""
         color: #666; 
     }
     .footer-label { 
-        font-family: 'Aharoni', sans-serif; /* Retorno para Aharoni */
-        font-size: 13px; /* Tamanho reduzido conforme solicitado */
-        color: #555; 
-        text-transform: uppercase;
+        font-family: 'Bodoni MT', 'Bodoni 72', serif; /* Alteração para Bodoni MT */
+        font-size: 14px; /* Ligeiro ajuste para legibilidade da Bodoni */
+        color: #444; 
         margin-top: 4px !important;
-        letter-spacing: 1px;
+        font-style: italic; /* Bodoni fica linda em itálico, remova se preferir normal */
     }
     .footer-gabriola { 
         font-family: 'Gabriola', serif; 
@@ -194,7 +193,7 @@ if not st.session_state.db.empty:
 else:
     st.info("Insira dados para habilitar as ferramentas.")
 
-# --- RODAPÉ ATUALIZADO (AHARONI COMPACTA) ---
+# --- RODAPÉ COM BODONI MT ---
 st.write("---")
 st.markdown("""
     <div class="footer-container">
