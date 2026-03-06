@@ -34,13 +34,37 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO ---
+# --- 3. CSS CUSTOMIZADO (FOCO NO RODAPÉ COMPACTO) ---
 st.markdown("""
     <style>
-    .footer-container { text-align: center; margin-top: 50px; }
-    .idea-marcia { font-family: 'Gabriola', serif; font-size: 20px; color: #666; }
-    .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 18px; color: #333; }
-    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; }
+    .footer-container { 
+        text-align: center; 
+        margin-top: 40px; 
+        padding-top: 20px;
+    }
+    .footer-container p {
+        margin: 0 !important; /* Remove o espaço entre as linhas */
+        padding: 0 !important;
+        line-height: 1.1 !important; /* Aproxima verticalmente */
+    }
+    .idea-marcia { 
+        font-family: 'Gabriola', serif; 
+        font-size: 20px; 
+        color: #666; 
+    }
+    .footer-aharoni { 
+        font-family: 'Aharoni', sans-serif; 
+        font-size: 16px; 
+        color: #333; 
+        text-transform: uppercase;
+        margin-top: 5px !important;
+    }
+    .footer-gabriola { 
+        font-family: 'Gabriola', serif; 
+        font-size: 38px; 
+        color: #2E7D32; 
+        font-weight: bold; 
+    }
     
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
     .btn-link { text-decoration: none; flex: 1; }
@@ -81,7 +105,7 @@ st.title("♻️ EcoLog - Gestão de Resíduos")
 
 with st.expander("➕ Registrar Coleta", expanded=True):
     c1, c2 = st.columns(2)
-    unidade = c1.selectbox("Unidade", ["Angra dos Reis", "Guarujá", "Ilha Bela"], key=f"u{st.session_state.input_key}")
+    unidade = c1.selectbox("Unidade", ["Angra dos Reis", "Guarujá"], key=f"u{st.session_state.input_key}")
     data_input = c2.date_input("Data", datetime.now(), format="DD/MM/YYYY", key=f"d{st.session_state.input_key}")
     c3, c4 = st.columns(2)
     tipo = c3.selectbox("Tipo", ["Reciclável", "Orgânico"], key=f"t{st.session_state.input_key}")
@@ -143,16 +167,11 @@ if not st.session_state.db.empty:
 
         st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
 
-    # --- 8. GESTÃO DE DADOS (COM SENHA E CHECKBOX) ---
+    # --- 8. GESTÃO DE DADOS ---
     st.divider()
     with st.expander("⚙️ Gerenciar Banco de Dados"):
-        st.write("Selecione as linhas que deseja remover:")
-        
-        # Cria cópia com coluna de seleção
         df_gestao = st.session_state.db.copy()
         df_gestao.insert(0, "Selecionar", False)
-        
-        # Editor de dados com checkbox
         tabela_editada = st.data_editor(
             df_gestao,
             column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)},
@@ -160,38 +179,27 @@ if not st.session_state.db.empty:
             hide_index=True,
             use_container_width=True
         )
-        
-        # Filtra as linhas selecionadas para exclusão
         linhas_selecionadas = tabela_editada[tabela_editada["Selecionar"] == True]
-        
         if not linhas_selecionadas.empty:
-            st.warning(f"Você selecionou {len(linhas_selecionadas)} registro(s) para exclusão.")
-            
-            # Campo de senha
-            senha = st.text_input("Digite a senha para confirmar a exclusão:", type="password")
-            
-            if st.button("🗑️ Confirmar Exclusão Definitiva", type="primary"):
+            senha = st.text_input("Senha de exclusão:", type="password")
+            if st.button("🗑️ Confirmar Exclusão", type="primary"):
                 if senha == "1234":
-                    # Mantém apenas as linhas que NÃO foram selecionadas
                     indices_para_manter = tabela_editada[tabela_editada["Selecionar"] == False].index
                     st.session_state.db = st.session_state.db.iloc[indices_para_manter].reset_index(drop=True)
                     salvar_dados(st.session_state.db)
-                    st.success("Registros excluídos com sucesso!")
                     st.rerun()
                 else:
-                    st.error("Senha incorreta! A exclusão foi cancelada.")
-        else:
-            st.info("Nenhuma linha selecionada para exclusão.")
+                    st.error("Senha incorreta!")
 
 else:
     st.info("Insira dados para habilitar as ferramentas.")
 
+# --- RODAPÉ AJUSTADO (SEM ESPAÇOS) ---
 st.write("---")
-st.markdown("""<div class="footer-container">
-    <p class="idea-marcia">Idea of Marcia Olsever</p>
-    <p class="footer-aharoni">Developed by:</p>
-    <p class="footer-gabriola">Edison Duarte Filho®</p>
-</div>""", unsafe_allow_html=True)
-
-
-
+st.markdown("""
+    <div class="footer-container">
+        <p class="idea-marcia">Idea of Marcia Olsever</p>
+        <p class="footer-aharoni">Developed by:</p>
+        <p class="footer-gabriola">Edison Duarte Filho®</p>
+    </div>
+""", unsafe_allow_html=True)
