@@ -34,7 +34,7 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (FOCO NO RODAPÉ COMPACTO) ---
+# --- 3. CSS CUSTOMIZADO (RODAPÉ E BOTÕES) ---
 st.markdown("""
     <style>
     .footer-container { 
@@ -43,21 +43,22 @@ st.markdown("""
         padding-top: 20px;
     }
     .footer-container p {
-        margin: 0 !important; /* Remove o espaço entre as linhas */
+        margin: 0 !important; 
         padding: 0 !important;
-        line-height: 1.1 !important; /* Aproxima verticalmente */
+        line-height: 1.1 !important; 
     }
     .idea-marcia { 
         font-family: 'Gabriola', serif; 
         font-size: 20px; 
         color: #666; 
     }
-    .footer-aharoni { 
-        font-family: 'Aharoni', sans-serif; 
-        font-size: 16px; 
-        color: #333; 
+    .footer-label { 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        font-size: 13px; /* Fonte reduzida */
+        color: #555; 
         text-transform: uppercase;
-        margin-top: 5px !important;
+        margin-top: 4px !important;
+        letter-spacing: 0.5px;
     }
     .footer-gabriola { 
         font-family: 'Gabriola', serif; 
@@ -190,17 +191,15 @@ if not st.session_state.db.empty:
                     st.rerun()
                 else:
                     st.error("Senha incorreta!")
-
 else:
     st.info("Insira dados para habilitar as ferramentas.")
 
-# --- RODAPÉ AJUSTADO (SEM ESPAÇOS) ---
+# --- RODAPÉ ATUALIZADO (FONTE NOVA E MENOR) ---
 st.write("---")
 st.markdown("""
     <div class="footer-container">
         <p class="idea-marcia">Idea of: Marcia Olsever</p>
-        <p class="footer-aharoni">Developed by:</p>
+        <p class="footer-label">Developed by:</p>
         <p class="footer-gabriola">Edison Duarte Filho®</p>
     </div>
 """, unsafe_allow_html=True)
-
