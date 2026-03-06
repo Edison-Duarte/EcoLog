@@ -81,7 +81,7 @@ st.title("♻️ EcoLog - Gestão de Resíduos")
 
 with st.expander("➕ Registrar Coleta", expanded=True):
     c1, c2 = st.columns(2)
-    unidade = c1.selectbox("Unidade", ["Angra dos Reis", "Guarujá"], key=f"u{st.session_state.input_key}")
+    unidade = c1.selectbox("Unidade", ["Angra dos Reis", "Guarujá", Ilha Bela"], key=f"u{st.session_state.input_key}")
     data_input = c2.date_input("Data", datetime.now(), format="DD/MM/YYYY", key=f"d{st.session_state.input_key}")
     c3, c4 = st.columns(2)
     tipo = c3.selectbox("Tipo", ["Reciclável", "Orgânico"], key=f"t{st.session_state.input_key}")
@@ -192,3 +192,4 @@ st.markdown("""<div class="footer-container">
     <p class="footer-aharoni">Developed by:</p>
     <p class="footer-gabriola">Edison Duarte Filho®</p>
 </div>""", unsafe_allow_html=True)
+
