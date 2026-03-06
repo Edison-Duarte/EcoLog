@@ -198,8 +198,9 @@ else:
 st.write("---")
 st.markdown("""
     <div class="footer-container">
-        <p class="idea-marcia">Idea of Marcia Olsever</p>
+        <p class="idea-marcia">Idea of: Marcia Olsever</p>
         <p class="footer-aharoni">Developed by:</p>
         <p class="footer-gabriola">Edison Duarte Filho®</p>
     </div>
 """, unsafe_allow_html=True)
+
