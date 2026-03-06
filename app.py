@@ -41,6 +41,7 @@ st.markdown("""
     .idea-marcia { font-family: 'Gabriola', serif; font-size: 20px; color: #666; }
     .footer-aharoni { font-family: 'Aharoni', sans-serif; font-size: 18px; color: #333; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; }
+    
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
     .btn-link { text-decoration: none; flex: 1; }
     .custom-st-btn {
@@ -191,6 +192,7 @@ st.markdown("""<div class="footer-container">
     <p class="footer-aharoni">Developed by:</p>
     <p class="footer-gabriola">Edison Duarte Filho®</p>
 </div>""", unsafe_allow_html=True)
+
 
 
 
