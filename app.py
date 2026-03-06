@@ -34,7 +34,7 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (FOCO NA BODONI MT E RODAPÉ) ---
+# --- 3. CSS CUSTOMIZADO (RODAPÉ E BOTÕES) ---
 st.markdown("""
     <style>
     .footer-container { 
@@ -53,11 +53,11 @@ st.markdown("""
         color: #666; 
     }
     .footer-label { 
-        font-family: 'Bodoni MT', 'Bodoni 72', serif; /* Alteração para Bodoni MT */
-        font-size: 14px; /* Ligeiro ajuste para legibilidade da Bodoni */
+        font-family: 'Bodoni MT', serif; 
+        font-size: 14px; 
         color: #444; 
         margin-top: 4px !important;
-        font-style: italic; /* Bodoni fica linda em itálico, remova se preferir normal */
+        font-style: italic;
     }
     .footer-gabriola { 
         font-family: 'Gabriola', serif; 
@@ -105,7 +105,7 @@ st.title("♻️ EcoLog - Gestão de Resíduos")
 
 with st.expander("➕ Registrar Coleta", expanded=True):
     c1, c2 = st.columns(2)
-    unidade = c1.selectbox("Unidade", ["Guarujá", "Angra dos Reis", "Ilha Bela"], key=f"u{st.session_state.input_key}")
+    unidade = c1.selectbox("Unidade", ["Angra dos Reis", "Guarujá"], key=f"u{st.session_state.input_key}")
     data_input = c2.date_input("Data", datetime.now(), format="DD/MM/YYYY", key=f"d{st.session_state.input_key}")
     c3, c4 = st.columns(2)
     tipo = c3.selectbox("Tipo", ["Reciclável", "Orgânico"], key=f"t{st.session_state.input_key}")
@@ -146,24 +146,38 @@ if not st.session_state.db.empty:
         df_f = pd.DataFrame()
 
     if not df_f.empty:
-        df_f = df_f.sort_values('Data')
-        freq = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
-        resumo = df_f.groupby([pd.Grouper(key='Data', freq=freq[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
-        if p_graf == "Semanal": resumo.index = resumo.index.strftime('%d/%m/%Y')
-        elif p_graf == "Mensal": resumo.index = resumo.index.strftime('%m/%Y')
-        else: resumo.index = resumo.index.strftime('%Y')
+        df_f = df_f.sort_values('Data', ascending=False)
         
-        st.bar_chart(resumo)
+        # Lógica do Gráfico
+        freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
+        resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
+        if p_graf == "Semanal": resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
+        elif p_graf == "Mensal": resumo_grafico.index = resumo_grafico.index.strftime('%m/%Y')
+        else: resumo_grafico.index = resumo_grafico.index.strftime('%Y')
+        
+        st.bar_chart(resumo_grafico)
 
-        # --- 7. EXPORTAÇÃO ---
+        # --- 7. EXPORTAÇÃO COM DETALHAMENTO INDIVIDUAL ---
         st.write("📤 **Exportar Seleção Atual:**")
         pdf_b = gerar_pdf_completo(df_f) 
         st.download_button("📥 Gerar PDF do Período", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
 
+        # MONTAGEM DO TEXTO (INDIVIDUAIS + TOTAL)
         total_kg = df_f['Peso (kg)'].sum()
-        txt = f"♻️ *Relatório EcoLog*\\nTotal Filtrado: {total_kg:.2f} kg"
+        txt = f"♻️ *RELATÓRIO ECOLOG - DETALHADO*\\n"
+        txt += f"Período: {start_date.strftime('%d/%m/%y')} a {end_date.strftime('%d/%m/%y')}\\n"
+        txt += "-----------------------------\\n"
+        
+        # Listando cada item filtrado
+        for _, r in df_f.iterrows():
+            txt += f"• {r['Data'].strftime('%d/%m/%y')} | {r['Unidade']} | {r['Tipo']} | {r['Peso (kg)']}kg\\n"
+        
+        txt += "-----------------------------\\n"
+        txt += f"*PESO TOTAL: {total_kg:.2f} kg*"
+        
+        # Links de compartilhamento
         link_w = f"https://wa.me/?text={txt.replace('\\n', '%0A')}"
-        link_e = f"mailto:?subject=Relatorio EcoLog&body={txt.replace('\\n', '%0D%0A')}"
+        link_e = f"mailto:?subject=Relatorio EcoLog Detalhado&body={txt.replace('\\n', '%0D%0A')}"
 
         st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
 
@@ -193,7 +207,7 @@ if not st.session_state.db.empty:
 else:
     st.info("Insira dados para habilitar as ferramentas.")
 
-# --- RODAPÉ COM BODONI MT ---
+# --- RODAPÉ ---
 st.write("---")
 st.markdown("""
     <div class="footer-container">
@@ -202,5 +216,3 @@ st.markdown("""
         <p class="footer-gabriola">Edison Duarte Filho®</p>
     </div>
 """, unsafe_allow_html=True)
-
-
