@@ -42,13 +42,36 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO ---
+# --- 3. CSS CUSTOMIZADO (RODAPÉ COM ESPAÇAMENTO 1,5) ---
 st.markdown("""
     <style>
-    .footer-container { text-align: center; margin-top: 40px; padding-top: 20px; }
-    .idea-marcia { font-family: 'Gabriola', serif; font-size: 20px; color: #666; }
-    .footer-label { font-family: 'Bodoni MT', serif; font-size: 14px; color: #444; font-style: italic; }
-    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 38px; color: #2E7D32; font-weight: bold; }
+    .footer-container { 
+        text-align: center; 
+        margin-top: 50px; 
+        padding-top: 20px;
+        line-height: 1.5; /* Espaçamento padrão Word 1,5 */
+    }
+    .idea-marcia { 
+        font-family: 'Gabriola', serif; 
+        font-size: 22px; 
+        color: #666; 
+        margin-bottom: 5px;
+    }
+    .footer-label { 
+        font-family: 'Bodoni MT', serif; 
+        font-size: 16px; 
+        color: #444; 
+        font-style: italic;
+    }
+    .footer-gabriola { 
+        font-family: 'Gabriola', serif; 
+        font-size: 42px; 
+        color: #2E7D32; 
+        font-weight: bold;
+        margin-top: 10px;
+    }
+    
+    /* Estilos dos botões permanecem os mesmos */
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
     .btn-link { text-decoration: none; flex: 1; }
     .custom-st-btn {
@@ -57,7 +80,6 @@ st.markdown("""
         width: 100%; border-radius: 0.5rem; border: 1px solid rgba(49, 51, 63, 0.2);
         height: 38.4px; font-size: 14px; font-weight: 400; text-align: center;
     }
-    .custom-st-btn:hover { border-color: rgb(255, 75, 75); color: rgb(255, 75, 75); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -171,7 +193,7 @@ else:
 
 # --- 8. RODAPÉ ---
 st.write("---")
-st.markdown(f"""
+st.markdown("""
     <div class="footer-container">
         <p class="idea-marcia">Idea of: Marcia Olsever</p>
         <p class="footer-label">Developed by:</p>
