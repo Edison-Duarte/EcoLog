@@ -139,23 +139,57 @@ if not st.session_state.db.empty:
         
         st.bar_chart(resumo_grafico)
 
-        # --- EXPORTAÇÃO E COMPARTILHAMENTO ---
+       # --- EXPORTAÇÃO E COMPARTILHAMENTO ---
         st.write("📤 **Exportar Seleção Atual:**")
+        
+        # 1. Botão de PDF (mantido)
         pdf_b = gerar_pdf_completo(df_f) 
         st.download_button("📥 Baixar Relatório em PDF", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
 
+        # 2. Montagem do Texto Detalhado para WhatsApp/E-mail
         total_kg = df_f['Peso (kg)'].sum()
-        txt_raw = f"♻️ *RELATÓRIO ECOLOG*%0APeríodo: {start_date.strftime('%d/%m/%y')} a {end_date.strftime('%d/%m/%y')}%0A-----------------------------%0A"
+        start_date, end_date = periodo_sel
+        
+        # Cabeçalho
+        txt_raw = f"♻️ *RELATÓRIO ECOLOG - DETALHADO*%0A"
+        txt_raw += f"Período: {start_date.strftime('%d/%m/%y')} a {end_date.strftime('%d/%m/%y')}%0A"
+        txt_raw += "-----------------------------%0A"
+        
+        # Listagem de cada item (O Relatório Completo)
+        # Ordenamos por data para o texto fazer sentido cronológico
+        for _, row in df_f.sort_values('Data').iterrows():
+            data_str = row['Data'].strftime('%d/%m/%y')
+            txt_raw += f"📅 {data_str} | {row['Unidade']}%0A"
+            txt_raw += f"└ {row['Tipo']}: {row['Peso (kg)']:.2f} kg%0A%0A"
+        
+        txt_raw += "-----------------------------%0A"
+        
+        # Resumo consolidado por tipo
         resumo_tipo = df_f.groupby('Tipo')['Peso (kg)'].sum()
+        txt_raw += "*RESUMO POR MATERIAL:*%0A"
         for t, p in resumo_tipo.items():
             txt_raw += f"• {t}: {p:.2f} kg%0A"
-        txt_raw += f"-----------------------------%0A*TOTAL: {total_kg:.2f} kg*"
+            
+        # Total Geral
+        txt_raw += f"-----------------------------%0A"
+        txt_raw += f"🏆 *TOTAL GERAL: {total_kg:.2f} kg*"
         
+        # Gerar os links
         link_w = f"https://wa.me/?text={txt_raw}"
+        # O replace garante que as quebras de linha funcionem em clientes de e-mail (Outlook/Gmail)
         link_e = f"mailto:?subject=Relatorio EcoLog&body={txt_raw.replace('%0A', '%0D%0A')}"
 
-        st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
-
+        # Botões lado a lado
+        st.markdown(f"""
+            <div class="btn-row">
+                <a href="{link_w}" target="_blank" class="btn-link">
+                    <div class="custom-st-btn">📲 WhatsApp</div>
+                </a>
+                <a href="{link_e}" class="btn-link">
+                    <div class="custom-st-btn">📧 E-mail</div>
+                </a>
+            </div>
+        """, unsafe_allow_html=True)
     # --- 7. GESTÃO DE DADOS ---
     st.divider()
     with st.expander("⚙️ Gerenciar Banco de Dados"):
@@ -177,3 +211,4 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
+
