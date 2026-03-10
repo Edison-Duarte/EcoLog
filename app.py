@@ -1,25 +1,32 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import locale
 from streamlit_gsheets import GSheetsConnection
 from fpdf import FPDF
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️", layout="centered")
 
-# --- 2. CONEXÃO COM GOOGLE SHEETS ---
+# --- 2. CONEXÃO COM GOOGLE SHEETS (BLINDAGEM DE DATAS) ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados():
     try:
+        # Lê a planilha bruta sem cache
         df = conn.read(ttl=0)
         if df is None or df.empty:
             return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
         
-        # Garante data sem fuso horário
-        df['Data'] = pd.to_datetime(df['Data']).dt.date
-        df['Data'] = pd.to_datetime(df['Data'])
+        # CORREÇÃO CRÍTICA: Força o entendimento de que o DIA vem primeiro (Padrão BR)
+        # Isso evita que 03/10 (10 de Março) vire 10/03 (03 de Outubro)
+        df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
+        
+        # Remove registros que não puderam ser convertidos (limpeza)
+        df = df.dropna(subset=['Data'])
+        
+        # Normaliza para objeto de data puro (sem horas/fuso)
+        df['Data'] = pd.to_datetime(df['Data'].dt.date)
+        
         return df
     except Exception as e:
         st.error(f"Erro ao carregar dados: {e}")
@@ -28,26 +35,29 @@ def carregar_dados():
 def salvar_dados(df):
     try:
         df_save = df.copy()
+        # Salva no formato universal ISO (AAAA-MM-DD)
+        # O Google Sheets reconhece este formato sem inverter dia e mês em nenhum país
         df_save['Data'] = pd.to_datetime(df_save['Data']).dt.strftime('%Y-%m-%d')
         conn.update(data=df_save)
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Erro ao salvar: {e}")
 
-# Inicialização
+# Inicialização do banco na sessão
 if 'db' not in st.session_state:
     st.session_state.db = carregar_dados()
 
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO ---
+# --- 3. CSS CUSTOMIZADO (RODAPÉ E BOTÕES) ---
 st.markdown("""
     <style>
     .footer-container { text-align: center; margin-top: 60px; padding-bottom: 20px; }
     .idea-marcia { font-family: 'Gabriola', serif; font-size: 24px; color: #666; line-height: 1.4 !important; margin-bottom: 8px !important; }
-    .footer-label { font-family: 'Bodoni MT', serif; font-size: 16px; color: #444; font-style: italic; line-height: 1.5; }
+    .footer-label { font-family: 'Bodoni MT', serif; font-size: 16px; color: #444; font-style: italic; line-height: 1.5; margin-bottom: 5px !important; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; line-height: 1.2; margin-top: 10px !important; }
+    
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 15px; margin-bottom: 20px; }
     .btn-link { text-decoration: none; flex: 1; }
     .custom-st-btn {
@@ -97,7 +107,7 @@ with st.expander("➕ Registrar Coleta", expanded=True):
             novo = pd.DataFrame({'Data': [pd.to_datetime(data_input)], 'Unidade': [unidade], 'Tipo': [tipo], 'Peso (kg)': [peso]})
             st.session_state.db = pd.concat([st.session_state.db, novo], ignore_index=True)
             salvar_dados(st.session_state.db)
-            st.success("Sincronizado!")
+            st.success("Sincronizado com o Banco de Dados!")
             st.session_state.input_key += 1
             st.rerun()
 
@@ -122,7 +132,10 @@ if not st.session_state.db.empty:
     
     if len(periodo_sel) == 2:
         start_date, end_date = periodo_sel
-        mask = (st.session_state.db['Data'].dt.date >= start_date) & (st.session_state.db['Data'].dt.date <= end_date) & (st.session_state.db['Unidade'].isin(u_sel)) & (st.session_state.db['Tipo'].isin(t_sel))
+        mask = (st.session_state.db['Data'].dt.date >= start_date) & \
+               (st.session_state.db['Data'].dt.date <= end_date) & \
+               (st.session_state.db['Unidade'].isin(u_sel)) & \
+               (st.session_state.db['Tipo'].isin(t_sel))
         df_f = st.session_state.db.loc[mask].copy()
     else:
         df_f = pd.DataFrame()
@@ -132,7 +145,7 @@ if not st.session_state.db.empty:
         freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
         resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
         
-        # Formatação Brasileira no Gráfico
+        # Formatação do eixo X (Texto BR)
         meses_pt = {1:"Jan", 2:"Fev", 3:"Mar", 4:"Abr", 5:"Mai", 6:"Jun", 7:"Jul", 8:"Ago", 9:"Set", 10:"Out", 11:"Nov", 12:"Dez"}
         if p_graf == "Semanal": resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%y')
         elif p_graf == "Mensal": resumo_grafico.index = [f"{meses_pt[d.month]}/{d.year}" for d in resumo_grafico.index]
@@ -140,7 +153,7 @@ if not st.session_state.db.empty:
         
         st.bar_chart(resumo_grafico)
 
-        # --- EXPORTAÇÃO COMPLETA BRASILEIRA ---
+        # --- EXPORTAÇÃO DETALHADA ---
         st.write("📤 **Exportar Seleção Atual:**")
         pdf_b = gerar_pdf_completo(df_f) 
         st.download_button("📥 Baixar Relatório em PDF", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
@@ -159,13 +172,19 @@ if not st.session_state.db.empty:
         link_w = f"https://wa.me/?text={txt_raw}"
         link_e = f"mailto:?subject=Relatorio EcoLog&body={txt_raw.replace('%0A', '%0D%0A')}"
 
-        st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
+        st.markdown(f"""
+            <div class="btn-row">
+                <a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a>
+                <a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a>
+            </div>
+        """, unsafe_allow_html=True)
 
     # --- 7. GESTÃO DE DADOS ---
     st.divider()
     with st.expander("⚙️ Gerenciar Banco de Dados"):
         df_gestao = st.session_state.db.copy()
-        df_gestao['Data'] = df_gestao['Data'].dt.strftime('%d/%m/%Y') # Exibição BR na tabela
+        # Exibe no formato BR na tabela de edição
+        df_gestao['Data'] = df_gestao['Data'].dt.strftime('%d/%m/%Y')
         df_gestao.insert(0, "Selecionar", False)
         tabela_editada = st.data_editor(df_gestao, column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)}, disabled=["Data", "Unidade", "Tipo", "Peso (kg)"], hide_index=True, use_container_width=True)
         if st.button("🗑️ Confirmar Exclusão Selecionados", type="primary"):
