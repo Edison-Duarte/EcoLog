@@ -8,35 +8,34 @@ from fpdf import FPDF
 st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️", layout="centered")
 
 # --- 2. CONEXÃO COM GOOGLE SHEETS ---
-# O Streamlit busca as credenciais automaticamente em .streamlit/secrets.toml (no Cloud)
+# Esta função utiliza as credenciais configuradas nos Secrets do Streamlit Cloud
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados():
     try:
-        # Adicione o parâmetro query para garantir que ele tente ler algo
-        df = conn.read(ttl=0) 
-        
-        # Se o que voltar não for um DataFrame válido, cria um vazio
-        if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        # Lê a planilha. ttl=0 garante que não use cache antigo
+        df = conn.read(ttl=0)
+        if df is None or df.empty:
             return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
-            
+        
+        # Garante que a coluna Data seja interpretada corretamente
         df['Data'] = pd.to_datetime(df['Data'])
         return df
     except Exception as e:
-        # Se der erro de resposta 200, ele apenas retorna o banco vazio para você começar a preencher
-        return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
-        df['Data'] = pd.to_datetime(df['Data'])
-        return df
-    except Exception as e:
-        st.error(f"Erro ao conectar com Google Sheets: {e}")
+        st.error(f"Erro ao carregar dados: {e}")
         return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
 
 def salvar_dados(df):
-    # Atualiza a planilha inteira com o novo DataFrame
-    conn.update(data=df)
-    st.cache_data.clear()
+    try:
+        # Converte datas para string antes de enviar para evitar erros de formato no Sheets
+        df_save = df.copy()
+        df_save['Data'] = df_save['Data'].dt.strftime('%Y-%m-%d')
+        conn.update(data=df_save)
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"Erro ao salvar no Google Sheets: {e}")
 
-# Inicializa o banco de dados na sessão
+# Inicialização do estado da sessão
 if 'db' not in st.session_state:
     st.session_state.db = carregar_dados()
 
@@ -48,6 +47,7 @@ st.markdown("""
     <style>
     .footer-container { text-align: center; margin-top: 40px; padding-top: 20px; }
     .idea-marcia { font-family: 'Gabriola', serif; font-size: 20px; color: #666; }
+    .footer-label { font-family: 'Bodoni MT', serif; font-size: 14px; color: #444; font-style: italic; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 38px; color: #2E7D32; font-weight: bold; }
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
     .btn-link { text-decoration: none; flex: 1; }
@@ -57,6 +57,7 @@ st.markdown("""
         width: 100%; border-radius: 0.5rem; border: 1px solid rgba(49, 51, 63, 0.2);
         height: 38.4px; font-size: 14px; font-weight: 400; text-align: center;
     }
+    .custom-st-btn:hover { border-color: rgb(255, 75, 75); color: rgb(255, 75, 75); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -94,19 +95,26 @@ with st.expander("➕ Registrar Coleta", expanded=True):
     
     if st.button("💾 Salvar Registro", use_container_width=True):
         if peso > 0:
-            novo = pd.DataFrame({'Data': [pd.to_datetime(data_input)], 'Unidade': [unidade], 'Tipo': [tipo], 'Peso (kg)': [peso]})
-            # Atualiza o estado e a planilha
+            novo = pd.DataFrame({
+                'Data': [pd.to_datetime(data_input)], 
+                'Unidade': [unidade], 
+                'Tipo': [tipo], 
+                'Peso (kg)': [peso]
+            })
             st.session_state.db = pd.concat([st.session_state.db, novo], ignore_index=True)
             salvar_dados(st.session_state.db)
-            st.success("Dados salvos no Google Sheets!")
+            st.success("Registro salvo com sucesso no Histórico!")
             st.session_state.input_key += 1
             st.rerun()
+        else:
+            st.warning("O peso deve ser maior que zero.")
 
-# --- 6. GRÁFICO E FILTROS ---
+# --- 6. VISUALIZAÇÃO E RELATÓRIOS ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
     
+    # Filtros
     f_col1, f_col2, f_col3 = st.columns([1, 1, 1.2])
     with f_col1:
         u_ops = sorted(st.session_state.db['Unidade'].unique())
@@ -119,23 +127,31 @@ if not st.session_state.db.empty:
         data_max = st.session_state.db['Data'].max().date()
         periodo_sel = st.date_input("📅 Período:", value=(data_min, data_max))
 
+    # Aplicação de Máscara de Filtro
     if len(periodo_sel) == 2:
         start_date, end_date = periodo_sel
-        mask = (st.session_state.db['Data'].dt.date >= start_date) & (st.session_state.db['Data'].dt.date <= end_date) & (st.session_state.db['Unidade'].isin(u_sel)) & (st.session_state.db['Tipo'].isin(t_sel))
+        mask = (st.session_state.db['Data'].dt.date >= start_date) & \
+               (st.session_state.db['Data'].dt.date <= end_date) & \
+               (st.session_state.db['Unidade'].isin(u_sel)) & \
+               (st.session_state.db['Tipo'].isin(t_sel))
         df_f = st.session_state.db.loc[mask].copy()
-        
-        if not df_f.empty:
-            resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq="ME"), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
-            resumo_grafico.index = resumo_grafico.index.strftime('%m/%Y')
-            st.bar_chart(resumo_grafico)
+    else:
+        df_f = pd.DataFrame()
 
-            # Exportação
-            pdf_b = gerar_pdf_completo(df_f) 
-            st.download_button("📥 Gerar PDF do Período", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
+    if not df_f.empty:
+        # Gráfico
+        resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq="ME"), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
+        resumo_grafico.index = resumo_grafico.index.strftime('%m/%Y')
+        st.bar_chart(resumo_grafico)
 
-    # --- 7. GESTÃO DE DADOS (EXCLUSÃO) ---
+        # PDF e Compartilhamento
+        st.write("📤 **Exportar Seleção Atual:**")
+        pdf_b = gerar_pdf_completo(df_f) 
+        st.download_button("📥 Gerar PDF do Período", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
+
+    # --- 7. GESTÃO E EXCLUSÃO ---
     st.divider()
-    with st.expander("⚙️ Gerenciar Banco de Dados"):
+    with st.expander("⚙️ Gerenciar Histórico Permanente"):
         df_gestao = st.session_state.db.copy()
         df_gestao.insert(0, "Selecionar", False)
         tabela_editada = st.data_editor(
@@ -144,13 +160,21 @@ if not st.session_state.db.empty:
             disabled=["Data", "Unidade", "Tipo", "Peso (kg)"],
             hide_index=True, use_container_width=True
         )
-        if st.button("🗑️ Confirmar Exclusão", type="primary"):
-            indices_manter = tabela_editada[tabela_editada["Selecionar"] == False].index
-            st.session_state.db = st.session_state.db.iloc[indices_manter].reset_index(drop=True)
+        
+        if st.button("🗑️ Confirmar Exclusão Selecionados", type="primary"):
+            indices_para_manter = tabela_editada[tabela_editada["Selecionar"] == False].index
+            st.session_state.db = st.session_state.db.iloc[indices_para_manter].reset_index(drop=True)
             salvar_dados(st.session_state.db)
             st.rerun()
+else:
+    st.info("O histórico está vazio. Insira dados para visualizar os relatórios.")
 
-# --- RODAPÉ ---
+# --- 8. RODAPÉ ---
 st.write("---")
-st.markdown('<div class="footer-container"><p class="idea-marcia">Idea of: Marcia Olsever</p><p class="footer-gabriola">Edison Duarte Filho®</p></div>', unsafe_allow_html=True)
-
+st.markdown(f"""
+    <div class="footer-container">
+        <p class="idea-marcia">Idea of: Marcia Olsever</p>
+        <p class="footer-label">Developed by:</p>
+        <p class="footer-gabriola">Edison Duarte Filho®</p>
+    </div>
+""", unsafe_allow_html=True)
