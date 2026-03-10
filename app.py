@@ -42,48 +42,47 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (RODAPÉ COMPACTO COM MARGENS NEGATIVAS) ---
+# --- 3. CSS CUSTOMIZADO (RODAPÉ COM ESPAÇAMENTO 1,5) ---
 st.markdown("""
     <style>
     .footer-container { 
         text-align: center; 
-        margin-top: 40px; 
-        padding-top: 0px;
-        line-height: 1.0 !important; /* Força espaçamento simples */
+        margin-top: 50px; 
+        padding-top: 20px;
+        line-height: 1.5; /* Espaçamento padrão Word 1,5 */
     }
-    
     .idea-marcia { 
         font-family: 'Gabriola', serif; 
         font-size: 22px; 
         color: #666; 
-        margin-bottom: -15px !important; /* Puxa a linha de baixo para cima */
+        margin-bottom: 5px;
     }
-    
     .footer-label { 
         font-family: 'Bodoni MT', serif; 
-        font-size: 14px; 
+        font-size: 16px; 
         color: #444; 
         font-style: italic;
-        margin-bottom: -25px !important; /* Puxa o nome do desenvolvedor para cima */
     }
-    
     .footer-gabriola { 
         font-family: 'Gabriola', serif; 
-        font-size: 38px; 
+        font-size: 42px; 
         color: #2E7D32; 
         font-weight: bold;
+        margin-top: 10px;
     }
     
-    /* Mantém o padrão dos botões */
+    /* Estilos dos botões permanecem os mesmos */
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
+    .btn-link { text-decoration: none; flex: 1; }
     .custom-st-btn {
         display: flex; align-items: center; justify-content: center;
         background-color: white; color: rgb(49, 51, 63);
         width: 100%; border-radius: 0.5rem; border: 1px solid rgba(49, 51, 63, 0.2);
-        height: 38.4px; font-size: 14px; text-align: center;
+        height: 38.4px; font-size: 14px; font-weight: 400; text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
+
 # --- 4. FUNÇÃO PDF ---
 def gerar_pdf_completo(df):
     pdf = FPDF()
@@ -196,9 +195,8 @@ else:
 st.write("---")
 st.markdown("""
     <div class="footer-container">
-        <div class="idea-marcia">Idea of: Marcia Olsever</div>
-        <div class="footer-label">Developed by:</div>
-        <div class="footer-gabriola">Edison Duarte Filho®</div>
+        <p class="idea-marcia">Idea of: Marcia Olsever</p>
+        <p class="footer-label">Developed by:</p>
+        <p class="footer-gabriola">Edison Duarte Filho®</p>
     </div>
 """, unsafe_allow_html=True)
-
