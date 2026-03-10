@@ -8,78 +8,55 @@ from fpdf import FPDF
 st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️", layout="centered")
 
 # --- 2. CONEXÃO COM GOOGLE SHEETS ---
-# Esta função utiliza as credenciais configuradas nos Secrets do Streamlit Cloud
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados():
     try:
-        # Lê a planilha. ttl=0 garante que não use cache antigo
+        # Lê a planilha em tempo real
         df = conn.read(ttl=0)
         if df is None or df.empty:
             return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
         
-        # Garante que a coluna Data seja interpretada corretamente
         df['Data'] = pd.to_datetime(df['Data'])
         return df
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
+        st.error(f"Erro ao conectar com Google Sheets: {e}")
         return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
 
 def salvar_dados(df):
     try:
-        # Converte datas para string antes de enviar para evitar erros de formato no Sheets
+        # Converte para string para garantir gravação correta no Sheets
         df_save = df.copy()
         df_save['Data'] = df_save['Data'].dt.strftime('%Y-%m-%d')
         conn.update(data=df_save)
         st.cache_data.clear()
     except Exception as e:
-        st.error(f"Erro ao salvar no Google Sheets: {e}")
+        st.error(f"Erro ao salvar: {e}")
 
-# Inicialização do estado da sessão
+# Inicializa o banco na sessão
 if 'db' not in st.session_state:
     st.session_state.db = carregar_dados()
 
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (RODAPÉ COM ESPAÇAMENTO 1,5) ---
+# --- 3. CSS CUSTOMIZADO (RODAPÉ COMPACTO E BOTÕES) ---
 st.markdown("""
     <style>
-    .footer-container { 
-        text-align: center; 
-        margin-top: 50px; 
-        padding-top: 20px;
-        line-height: 1.5; /* Espaçamento padrão Word 1,5 */
-    }
-    .idea-marcia { 
-        font-family: 'Gabriola', serif; 
-        font-size: 22px; 
-        color: #666; 
-        margin-bottom: 5px;
-    }
-    .footer-label { 
-        font-family: 'Bodoni MT', serif; 
-        font-size: 16px; 
-        color: #444; 
-        font-style: italic;
-    }
-    .footer-gabriola { 
-        font-family: 'Gabriola', serif; 
-        font-size: 42px; 
-        color: #2E7D32; 
-        font-weight: bold;
-        margin-top: 10px;
-    }
+    .footer-container { text-align: center; margin-top: 40px; line-height: 1.0 !important; }
+    .idea-marcia { font-family: 'Gabriola', serif; font-size: 22px; color: #666; margin-bottom: -15px !important; }
+    .footer-label { font-family: 'Bodoni MT', serif; font-size: 14px; color: #444; font-style: italic; margin-bottom: -25px !important; }
+    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 38px; color: #2E7D32; font-weight: bold; }
     
-    /* Estilos dos botões permanecem os mesmos */
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
     .btn-link { text-decoration: none; flex: 1; }
     .custom-st-btn {
         display: flex; align-items: center; justify-content: center;
         background-color: white; color: rgb(49, 51, 63);
         width: 100%; border-radius: 0.5rem; border: 1px solid rgba(49, 51, 63, 0.2);
-        height: 38.4px; font-size: 14px; font-weight: 400; text-align: center;
+        height: 38.4px; font-size: 14px; text-align: center; transition: 0.3s;
     }
+    .custom-st-btn:hover { border-color: rgb(255, 75, 75); color: rgb(255, 75, 75); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -117,21 +94,14 @@ with st.expander("➕ Registrar Coleta", expanded=True):
     
     if st.button("💾 Salvar Registro", use_container_width=True):
         if peso > 0:
-            novo = pd.DataFrame({
-                'Data': [pd.to_datetime(data_input)], 
-                'Unidade': [unidade], 
-                'Tipo': [tipo], 
-                'Peso (kg)': [peso]
-            })
+            novo = pd.DataFrame({'Data': [pd.to_datetime(data_input)], 'Unidade': [unidade], 'Tipo': [tipo], 'Peso (kg)': [peso]})
             st.session_state.db = pd.concat([st.session_state.db, novo], ignore_index=True)
             salvar_dados(st.session_state.db)
-            st.success("Registro salvo com sucesso no Histórico!")
+            st.success("Dados salvos no histórico permanente!")
             st.session_state.input_key += 1
             st.rerun()
-        else:
-            st.warning("O peso deve ser maior que zero.")
 
-# --- 6. GRÁFICO DINÂMICO ---
+# --- 6. GRÁFICO E FILTROS ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
@@ -146,74 +116,64 @@ if not st.session_state.db.empty:
     with f_col3:
         data_min = st.session_state.db['Data'].min().date()
         data_max = st.session_state.db['Data'].max().date()
-        periodo_sel = st.date_input("📅 Período:", value=(data_min, data_max), min_value=data_min, max_value=data_max)
+        periodo_sel = st.date_input("📅 Período:", value=(data_min, data_max))
 
-    # BARRA DESLIZANTE RESTAURADA
     p_graf = st.select_slider("Agrupar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     
     if len(periodo_sel) == 2:
         start_date, end_date = periodo_sel
-        mask = (st.session_state.db['Data'].dt.date >= start_date) & \
-               (st.session_state.db['Data'].dt.date <= end_date) & \
-               (st.session_state.db['Unidade'].isin(u_sel)) & \
-               (st.session_state.db['Tipo'].isin(t_sel))
+        mask = (st.session_state.db['Data'].dt.date >= start_date) & (st.session_state.db['Data'].dt.date <= end_date) & (st.session_state.db['Unidade'].isin(u_sel)) & (st.session_state.db['Tipo'].isin(t_sel))
         df_f = st.session_state.db.loc[mask].copy()
     else:
         df_f = pd.DataFrame()
 
     if not df_f.empty:
-        # Ordenamos os dados antes de agrupar
         df_f = df_f.sort_values('Data')
-        
-        # Mapeamento de Frequência (ME = Month End, essencial para o Pandas atual)
         freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
-        
-        # Criamos o resumo para o gráfico
         resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
         
-        # FORMATAÇÃO DO EIXO X (Transformar em Texto para não desregular)
-        if p_graf == "Semanal": 
-            resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
-        elif p_graf == "Mensal": 
-            resumo_grafico.index = resumo_grafico.index.strftime('%b/%Y') # Ex: Jan/2024
-        else: 
-            resumo_grafico.index = resumo_grafico.index.strftime('%Y')
+        # Formatação do eixo X como Texto para não desregular o gráfico
+        if p_graf == "Semanal": resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
+        elif p_graf == "Mensal": resumo_grafico.index = resumo_grafico.index.strftime('%b/%Y')
+        else: resumo_grafico.index = resumo_grafico.index.strftime('%Y')
         
-        # Exibe o gráfico de barras
         st.bar_chart(resumo_grafico)
 
-        # --- EXPORTAÇÃO (Fica logo abaixo do gráfico) ---
+        # --- EXPORTAÇÃO E COMPARTILHAMENTO ---
         st.write("📤 **Exportar Seleção Atual:**")
         pdf_b = gerar_pdf_completo(df_f) 
-        st.download_button("📥 Gerar PDF do Período", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
-    # --- 7. GESTÃO E EXCLUSÃO ---
+        st.download_button("📥 Baixar Relatório em PDF", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
+
+        total_kg = df_f['Peso (kg)'].sum()
+        txt_raw = f"♻️ *RELATÓRIO ECOLOG*%0APeríodo: {start_date.strftime('%d/%m/%y')} a {end_date.strftime('%d/%m/%y')}%0A-----------------------------%0A"
+        resumo_tipo = df_f.groupby('Tipo')['Peso (kg)'].sum()
+        for t, p in resumo_tipo.items():
+            txt_raw += f"• {t}: {p:.2f} kg%0A"
+        txt_raw += f"-----------------------------%0A*TOTAL: {total_kg:.2f} kg*"
+        
+        link_w = f"https://wa.me/?text={txt_raw}"
+        link_e = f"mailto:?subject=Relatorio EcoLog&body={txt_raw.replace('%0A', '%0D%0A')}"
+
+        st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
+
+    # --- 7. GESTÃO DE DADOS ---
     st.divider()
-    with st.expander("⚙️ Gerenciar Histórico Permanente"):
+    with st.expander("⚙️ Gerenciar Banco de Dados"):
         df_gestao = st.session_state.db.copy()
         df_gestao.insert(0, "Selecionar", False)
-        tabela_editada = st.data_editor(
-            df_gestao,
-            column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)},
-            disabled=["Data", "Unidade", "Tipo", "Peso (kg)"],
-            hide_index=True, use_container_width=True
-        )
-        
+        tabela_editada = st.data_editor(df_gestao, column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)}, disabled=["Data", "Unidade", "Tipo", "Peso (kg)"], hide_index=True, use_container_width=True)
         if st.button("🗑️ Confirmar Exclusão Selecionados", type="primary"):
-            indices_para_manter = tabela_editada[tabela_editada["Selecionar"] == False].index
-            st.session_state.db = st.session_state.db.iloc[indices_para_manter].reset_index(drop=True)
+            indices_manter = tabela_editada[tabela_editada["Selecionar"] == False].index
+            st.session_state.db = st.session_state.db.iloc[indices_manter].reset_index(drop=True)
             salvar_dados(st.session_state.db)
             st.rerun()
-else:
-    st.info("O histórico está vazio. Insira dados para visualizar os relatórios.")
 
 # --- 8. RODAPÉ ---
 st.write("---")
 st.markdown("""
     <div class="footer-container">
-        <p class="idea-marcia">Idea of: Marcia Olsever</p>
-        <p class="footer-label">Developed by:</p>
-        <p class="footer-gabriola">Edison Duarte Filho®</p>
+        <div class="idea-marcia">Idea of: Marcia Olsever</div>
+        <div class="footer-label">Developed by:</div>
+        <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
-
-
