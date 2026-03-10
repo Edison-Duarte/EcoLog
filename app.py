@@ -7,36 +7,39 @@ from fpdf import FPDF
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️", layout="centered")
 
-# --- 2. CONEXÃO COM GOOGLE SHEETS (CORREÇÃO DE DATAS) ---
+# --- 2. CONEXÃO COM GOOGLE SHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados():
     try:
-        # Lê a planilha e limpa o cache
+        # Lê a planilha em tempo real
         df = conn.read(ttl=0)
         if df is None or df.empty:
             return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
         
-        # O SEGREDO: Converter para datetime e depois remover a hora (manter apenas a data)
-        df['Data'] = pd.to_datetime(df['Data']).dt.date
-        # Converte de volta para datetime para que os filtros de data do Streamlit funcionem
         df['Data'] = pd.to_datetime(df['Data'])
-        
         return df
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
+        st.error(f"Erro ao conectar com Google Sheets: {e}")
         return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
 
 def salvar_dados(df):
     try:
+        # Converte para string para garantir gravação correta no Sheets
         df_save = df.copy()
-        # Garante que no Google Sheets seja salvo apenas o texto AAAA-MM-DD
-        # Isso evita que o Google Sheets adicione horas/fuso sozinho
-        df_save['Data'] = pd.to_datetime(df_save['Data']).dt.strftime('%Y-%m-%d')
+        df_save['Data'] = df_save['Data'].dt.strftime('%Y-%m-%d')
         conn.update(data=df_save)
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Erro ao salvar: {e}")
+
+# Inicializa o banco na sessão
+if 'db' not in st.session_state:
+    st.session_state.db = carregar_dados()
+
+if 'input_key' not in st.session_state:
+    st.session_state.input_key = 0
+
 # --- 3. CSS CUSTOMIZADO (RODAPÉ CORRIGIDO SEM SOBREPOSIÇÃO) ---
 st.markdown("""
     <style>
@@ -235,5 +238,3 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
-
-
