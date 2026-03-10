@@ -11,13 +11,14 @@ except ImportError:
     st.error("A biblioteca 'fpdf2' é necessária.")
 
 # --- 1. CONEXÃO COM GOOGLE SHEETS ---
+# O Streamlit buscará as credenciais em .streamlit/secrets.toml
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados():
     try:
-        # ttl=0 garante que ele sempre busque o dado mais novo da nuvem
-        df = conn.read(ttl=0)
-        if df is None or df.empty:
+        # Lê a planilha "Página1" (ou o nome da sua aba)
+        df = conn.read(ttl="0s") # ttl=0 para carregar dados frescos sempre
+        if df.empty:
             return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
         df['Data'] = pd.to_datetime(df['Data'])
         return df
@@ -25,15 +26,12 @@ def carregar_dados():
         return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
 
 def salvar_dados(df):
-    # Formata a data para string antes de enviar para evitar erros de JSON na API do Google
-    df_para_salvar = df.copy()
-    df_para_salvar['Data'] = df_para_salvar['Data'].dt.strftime('%Y-%m-%d')
-    conn.update(data=df_para_salvar)
+    # Sobrescreve a planilha com o DataFrame atualizado
+    conn.update(data=df)
 
 # --- 2. CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️", layout="centered")
+st.set_page_config(page_title="EcoLog Cloud - Gestão de Resíduos", page_icon="♻️", layout="centered")
 
-# Inicializa o banco de dados vindo da nuvem
 if 'db' not in st.session_state:
     st.session_state.db = carregar_dados()
 
@@ -48,6 +46,7 @@ st.markdown("""
     .idea-marcia { font-family: 'Gabriola', serif; font-size: 20px; color: #666; }
     .footer-label { font-family: 'Bodoni MT', serif; font-size: 14px; color: #444; margin-top: 4px !important; font-style: italic; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 38px; color: #2E7D32; font-weight: bold; }
+    
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
     .btn-link { text-decoration: none; flex: 1; }
     .custom-st-btn {
@@ -86,26 +85,27 @@ st.title("♻️ EcoLog - Cloud Edition")
 
 with st.expander("➕ Registrar Coleta", expanded=True):
     c1, c2 = st.columns(2)
-    unidade = c1.selectbox("Unidade", ["Guarujá", "Angra dos Reis", "Ilha Bela"], key=f"u{st.session_state.input_key}")
+    unidade = c1.selectbox("Unidade", ["Angra dos Reis", "Guarujá"], key=f"u{st.session_state.input_key}")
     data_input = c2.date_input("Data", datetime.now(), format="DD/MM/YYYY", key=f"d{st.session_state.input_key}")
     c3, c4 = st.columns(2)
     tipo = c3.selectbox("Tipo", ["Reciclável", "Orgânico"], key=f"t{st.session_state.input_key}")
     peso = c4.number_input("Peso (kg)", min_value=0.0, step=0.1, key=f"p{st.session_state.input_key}")
     
-    if st.button("💾 Salvar na Nuvem", use_container_width=True):
+    if st.button("💾 Salvar no Google Sheets", use_container_width=True):
         if peso > 0:
-            novo = pd.DataFrame({'Data': [pd.to_datetime(data_input)], 'Unidade': [unidade], 'Tipo': [tipo], 'Peso (kg)': [peso]})
+            novo = pd.DataFrame({'Data': [pd.to_datetime(data_input).strftime('%Y-%m-%d')], 'Unidade': [unidade], 'Tipo': [tipo], 'Peso (kg)': [peso]})
             st.session_state.db = pd.concat([st.session_state.db, novo], ignore_index=True)
             salvar_dados(st.session_state.db)
             st.session_state.input_key += 1
-            st.success("Dados salvos no Google Sheets!")
+            st.success("Dados sincronizados na nuvem!")
             st.rerun()
 
-# --- 6. FILTROS E GRÁFICO ---
+# --- 6. GRÁFICO DINÂMICO ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
     
+    # Filtros
     f_col1, f_col2, f_col3 = st.columns([1, 1, 1.2])
     with f_col1:
         u_ops = sorted(st.session_state.db['Unidade'].unique())
@@ -116,58 +116,57 @@ if not st.session_state.db.empty:
     with f_col3:
         data_min = st.session_state.db['Data'].min().date()
         data_max = st.session_state.db['Data'].max().date()
-        periodo_sel = st.date_input("📅 Período:", value=(data_min, data_max))
+        periodo_sel = st.date_input("📅 Período:", value=(data_min, data_max), min_value=data_min, max_value=data_max)
 
+    p_graf = st.select_slider("Agrupar por:", options=["Semanal", "Mensal", "Anual"])
+    
     if len(periodo_sel) == 2:
         start_date, end_date = periodo_sel
         mask = (st.session_state.db['Data'].dt.date >= start_date) & (st.session_state.db['Data'].dt.date <= end_date) & (st.session_state.db['Unidade'].isin(u_sel)) & (st.session_state.db['Tipo'].isin(t_sel))
         df_f = st.session_state.db.loc[mask].copy()
+    else:
+        df_f = pd.DataFrame()
+
+    if not df_f.empty:
+        df_f = df_f.sort_values('Data', ascending=False)
         
-        if not df_f.empty:
-            df_f = df_f.sort_values('Data', ascending=False)
-            
-            # Gráfico
-            resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq='W'), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
-            resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
-            st.bar_chart(resumo_grafico)
+        # Gráfico
+        freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
+        resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
+        st.bar_chart(resumo_grafico)
 
-            # --- 7. EXPORTAÇÃO E RELATÓRIO INDIVIDUALIZADO ---
-            st.write("📤 **Exportar Seleção Atual:**")
-            
-            # PDF
-            pdf_b = gerar_pdf_completo(df_f) 
-            st.download_button("📥 Gerar PDF do Período", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
+        # --- 7. EXPORTAÇÃO ---
+        pdf_b = gerar_pdf_completo(df_f) 
+        st.download_button("📥 Gerar PDF do Período", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
 
-            # Mensagem Detalhada
-            total_kg = df_f['Peso (kg)'].sum()
-            txt = f"♻️ *RELATÓRIO ECOLOG - DETALHADO*\\n"
-            txt += f"Período: {start_date.strftime('%d/%m/%y')} a {end_date.strftime('%d/%m/%y')}\\n"
-            txt += "-----------------------------\\n"
-            
-            # Loop para quantidades individuais
-            for _, r in df_f.iterrows():
-                txt += f"• {r['Data'].strftime('%d/%m/%y')} | {r['Unidade']} | {r['Tipo']} | {r['Peso (kg)']}kg\\n"
-            
-            txt += "-----------------------------\\n"
-            txt += f"*PESO TOTAL: {total_kg:.2f} kg*"
-            
-            link_w = f"https://wa.me/?text={txt.replace('\\n', '%0A')}"
-            link_e = f"mailto:?subject=Relatorio EcoLog Detalhado&body={txt.replace('\\n', '%0D%0A')}"
+        total_kg = df_f['Peso (kg)'].sum()
+        txt = f"♻️ *RELATÓRIO ECOLOG*\\n"
+        for _, r in df_f.iterrows():
+            txt += f"• {r['Data'].strftime('%d/%m/%y')} | {r['Unidade']} | {r['Tipo']} | {r['Peso (kg)']}kg\\n"
+        txt += f"\\n*TOTAL: {total_kg:.2f} kg*"
+        
+        link_w = f"https://wa.me/?text={txt.replace('\\n', '%0A')}"
+        link_e = f"mailto:?subject=Relatorio EcoLog&body={txt.replace('\\n', '%0D%0A')}"
 
-            st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
 
-    # --- 8. GESTÃO DE DADOS (CLOUD) ---
+    # --- 8. GESTÃO ---
     st.divider()
     with st.expander("⚙️ Gerenciar Banco de Dados Cloud"):
         df_gestao = st.session_state.db.copy()
         df_gestao.insert(0, "Selecionar", False)
         tabela_editada = st.data_editor(df_gestao, column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)}, disabled=["Data", "Unidade", "Tipo", "Peso (kg)"], hide_index=True, use_container_width=True)
         
-        if st.button("🗑️ Confirmar Exclusão Selecionados", type="primary"):
-            indices_para_manter = tabela_editada[tabela_editada["Selecionar"] == False].index
-            st.session_state.db = st.session_state.db.iloc[indices_para_manter].reset_index(drop=True)
-            salvar_dados(st.session_state.db)
-            st.rerun()
+        linhas_selecionadas = tabela_editada[tabela_editada["Selecionar"] == True]
+        if not linhas_selecionadas.empty:
+            senha = st.text_input("Senha de exclusão:", type="password")
+            if st.button("🗑️ Confirmar Exclusão na Planilha", type="primary"):
+                if senha == "1234":
+                    indices_para_manter = tabela_editada[tabela_editada["Selecionar"] == False].index
+                    st.session_state.db = st.session_state.db.iloc[indices_para_manter].reset_index(drop=True)
+                    salvar_dados(st.session_state.db)
+                    st.success("Sincronizado!")
+                    st.rerun()
 else:
     st.info("Insira dados para sincronizar com o Google Sheets.")
 
