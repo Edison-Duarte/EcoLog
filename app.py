@@ -50,10 +50,10 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (RODAPÉ E BOTÕES ATUALIZADOS) ---
+# --- 3. CSS CUSTOMIZADO (ASSINATURA REDUZIDA) ---
 st.markdown("""
     <style>
-    /* Estilização do Rodapé - Tamanhos Reduzidos */
+    /* Estilização do Rodapé */
     .footer-container { 
         text-align: center; 
         margin-top: 60px; 
@@ -61,14 +61,14 @@ st.markdown("""
     }
     .idea-marcia { 
         font-family: 'Gabriola', serif; 
-        font-size: 18px; /* Reduzido de 24px */
+        font-size: 18px; 
         color: #666; 
         line-height: 1.2 !important; 
         margin-bottom: 5px !important;
     }
     .footer-label { 
         font-family: 'Bodoni MT', serif; 
-        font-size: 13px; /* Reduzido de 16px */
+        font-size: 13px; 
         color: #444; 
         font-style: italic; 
         line-height: 1.0;
@@ -76,14 +76,14 @@ st.markdown("""
     }
     .footer-gabriola { 
         font-family: 'Gabriola', serif; 
-        font-size: 32px; /* Reduzido de 42px */
+        font-size: 26px; /* Diminuído de 32px para ficar mais discreto */
         color: #2E7D32; 
         font-weight: bold; 
         line-height: 1.1; 
         margin-top: 5px !important;
     }
     
-    /* Botões de Compartilhamento (Lado a Lado) */
+    /* Botões de Compartilhamento */
     .btn-row { 
         display: flex; 
         gap: 10px; 
@@ -270,6 +270,7 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
+
 
 
 
