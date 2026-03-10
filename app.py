@@ -2,38 +2,33 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
-import os
+from fpdf import FPDF
 
-# Tentativa de importar a biblioteca PDF
-try:
-    from fpdf import FPDF
-except ImportError:
-    st.error("A biblioteca 'fpdf2' é necessária.")
+# --- 1. CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️", layout="centered")
 
-# --- 1. CONEXÃO COM GOOGLE SHEETS ---
+# --- 2. CONEXÃO COM GOOGLE SHEETS ---
+# O Streamlit busca as credenciais automaticamente em .streamlit/secrets.toml (no Cloud)
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados():
     try:
-        # ttl=0 garante que ele sempre busque o dado mais novo da nuvem
+        # Lê a planilha em tempo real (ttl=0 evita cache antigo)
         df = conn.read(ttl=0)
-        if df is None or df.empty:
+        if df.empty:
             return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
         df['Data'] = pd.to_datetime(df['Data'])
         return df
-    except:
+    except Exception as e:
+        st.error(f"Erro ao conectar com Google Sheets: {e}")
         return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
 
 def salvar_dados(df):
-    # Formata a data para string antes de enviar para evitar erros de JSON na API do Google
-    df_para_salvar = df.copy()
-    df_para_salvar['Data'] = df_para_salvar['Data'].dt.strftime('%Y-%m-%d')
-    conn.update(data=df_para_salvar)
+    # Atualiza a planilha inteira com o novo DataFrame
+    conn.update(data=df)
+    st.cache_data.clear()
 
-# --- 2. CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️", layout="centered")
-
-# Inicializa o banco de dados vindo da nuvem
+# Inicializa o banco de dados na sessão
 if 'db' not in st.session_state:
     st.session_state.db = carregar_dados()
 
@@ -44,9 +39,7 @@ if 'input_key' not in st.session_state:
 st.markdown("""
     <style>
     .footer-container { text-align: center; margin-top: 40px; padding-top: 20px; }
-    .footer-container p { margin: 0 !important; padding: 0 !important; line-height: 1.1 !important; }
     .idea-marcia { font-family: 'Gabriola', serif; font-size: 20px; color: #666; }
-    .footer-label { font-family: 'Bodoni MT', serif; font-size: 14px; color: #444; margin-top: 4px !important; font-style: italic; }
     .footer-gabriola { font-family: 'Gabriola', serif; font-size: 38px; color: #2E7D32; font-weight: bold; }
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
     .btn-link { text-decoration: none; flex: 1; }
@@ -56,7 +49,6 @@ st.markdown("""
         width: 100%; border-radius: 0.5rem; border: 1px solid rgba(49, 51, 63, 0.2);
         height: 38.4px; font-size: 14px; font-weight: 400; text-align: center;
     }
-    .custom-st-btn:hover { border-color: rgb(255, 75, 75); color: rgb(255, 75, 75); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -82,7 +74,7 @@ def gerar_pdf_completo(df):
     return bytes(pdf.output())
 
 # --- 5. INTERFACE DE ENTRADA ---
-st.title("♻️ EcoLog - Cloud Edition")
+st.title("♻️ EcoLog - Gestão de Resíduos")
 
 with st.expander("➕ Registrar Coleta", expanded=True):
     c1, c2 = st.columns(2)
@@ -92,16 +84,17 @@ with st.expander("➕ Registrar Coleta", expanded=True):
     tipo = c3.selectbox("Tipo", ["Reciclável", "Orgânico"], key=f"t{st.session_state.input_key}")
     peso = c4.number_input("Peso (kg)", min_value=0.0, step=0.1, key=f"p{st.session_state.input_key}")
     
-    if st.button("💾 Salvar na Nuvem", use_container_width=True):
+    if st.button("💾 Salvar Registro", use_container_width=True):
         if peso > 0:
             novo = pd.DataFrame({'Data': [pd.to_datetime(data_input)], 'Unidade': [unidade], 'Tipo': [tipo], 'Peso (kg)': [peso]})
+            # Atualiza o estado e a planilha
             st.session_state.db = pd.concat([st.session_state.db, novo], ignore_index=True)
             salvar_dados(st.session_state.db)
-            st.session_state.input_key += 1
             st.success("Dados salvos no Google Sheets!")
+            st.session_state.input_key += 1
             st.rerun()
 
-# --- 6. FILTROS E GRÁFICO ---
+# --- 6. GRÁFICO E FILTROS ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
@@ -124,59 +117,31 @@ if not st.session_state.db.empty:
         df_f = st.session_state.db.loc[mask].copy()
         
         if not df_f.empty:
-            df_f = df_f.sort_values('Data', ascending=False)
-            
-            # Gráfico
-            resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq='W'), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
-            resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
+            resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq="ME"), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
+            resumo_grafico.index = resumo_grafico.index.strftime('%m/%Y')
             st.bar_chart(resumo_grafico)
 
-            # --- 7. EXPORTAÇÃO E RELATÓRIO INDIVIDUALIZADO ---
-            st.write("📤 **Exportar Seleção Atual:**")
-            
-            # PDF
+            # Exportação
             pdf_b = gerar_pdf_completo(df_f) 
             st.download_button("📥 Gerar PDF do Período", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
 
-            # Mensagem Detalhada
-            total_kg = df_f['Peso (kg)'].sum()
-            txt = f"♻️ *RELATÓRIO ECOLOG - DETALHADO*\\n"
-            txt += f"Período: {start_date.strftime('%d/%m/%y')} a {end_date.strftime('%d/%m/%y')}\\n"
-            txt += "-----------------------------\\n"
-            
-            # Loop para quantidades individuais
-            for _, r in df_f.iterrows():
-                txt += f"• {r['Data'].strftime('%d/%m/%y')} | {r['Unidade']} | {r['Tipo']} | {r['Peso (kg)']}kg\\n"
-            
-            txt += "-----------------------------\\n"
-            txt += f"*PESO TOTAL: {total_kg:.2f} kg*"
-            
-            link_w = f"https://wa.me/?text={txt.replace('\\n', '%0A')}"
-            link_e = f"mailto:?subject=Relatorio EcoLog Detalhado&body={txt.replace('\\n', '%0D%0A')}"
-
-            st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
-
-    # --- 8. GESTÃO DE DADOS (CLOUD) ---
+    # --- 7. GESTÃO DE DADOS (EXCLUSÃO) ---
     st.divider()
-    with st.expander("⚙️ Gerenciar Banco de Dados Cloud"):
+    with st.expander("⚙️ Gerenciar Banco de Dados"):
         df_gestao = st.session_state.db.copy()
         df_gestao.insert(0, "Selecionar", False)
-        tabela_editada = st.data_editor(df_gestao, column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)}, disabled=["Data", "Unidade", "Tipo", "Peso (kg)"], hide_index=True, use_container_width=True)
-        
-        if st.button("🗑️ Confirmar Exclusão Selecionados", type="primary"):
-            indices_para_manter = tabela_editada[tabela_editada["Selecionar"] == False].index
-            st.session_state.db = st.session_state.db.iloc[indices_para_manter].reset_index(drop=True)
+        tabela_editada = st.data_editor(
+            df_gestao,
+            column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)},
+            disabled=["Data", "Unidade", "Tipo", "Peso (kg)"],
+            hide_index=True, use_container_width=True
+        )
+        if st.button("🗑️ Confirmar Exclusão", type="primary"):
+            indices_manter = tabela_editada[tabela_editada["Selecionar"] == False].index
+            st.session_state.db = st.session_state.db.iloc[indices_manter].reset_index(drop=True)
             salvar_dados(st.session_state.db)
             st.rerun()
-else:
-    st.info("Insira dados para sincronizar com o Google Sheets.")
 
 # --- RODAPÉ ---
 st.write("---")
-st.markdown("""
-    <div class="footer-container">
-        <p class="idea-marcia">Idea of: Marcia Olsever</p>
-        <p class="footer-label">Developed by:</p>
-        <p class="footer-gabriola">Edison Duarte Filho®</p>
-    </div>
-""", unsafe_allow_html=True)
+st.markdown('<div class="footer-container"><p class="idea-marcia">Idea of: Marcia Olsever</p><p class="footer-gabriola">Edison Duarte Filho®</p></div>', unsafe_allow_html=True)
