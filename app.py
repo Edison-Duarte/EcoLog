@@ -13,10 +13,18 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados():
     try:
-        # Lê a planilha em tempo real (ttl=0 evita cache antigo)
-        df = conn.read(ttl=0)
-        if df.empty:
+        # Adicione o parâmetro query para garantir que ele tente ler algo
+        df = conn.read(ttl=0) 
+        
+        # Se o que voltar não for um DataFrame válido, cria um vazio
+        if df is None or not isinstance(df, pd.DataFrame) or df.empty:
             return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
+            
+        df['Data'] = pd.to_datetime(df['Data'])
+        return df
+    except Exception as e:
+        # Se der erro de resposta 200, ele apenas retorna o banco vazio para você começar a preencher
+        return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
         df['Data'] = pd.to_datetime(df['Data'])
         return df
     except Exception as e:
@@ -145,3 +153,4 @@ if not st.session_state.db.empty:
 # --- RODAPÉ ---
 st.write("---")
 st.markdown('<div class="footer-container"><p class="idea-marcia">Idea of: Marcia Olsever</p><p class="footer-gabriola">Edison Duarte Filho®</p></div>', unsafe_allow_html=True)
+
