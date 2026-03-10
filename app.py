@@ -40,23 +40,50 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (RODAPÉ COMPACTO E BOTÕES) ---
+# --- 3. CSS CUSTOMIZADO (RODAPÉ CORRIGIDO SEM SOBREPOSIÇÃO) ---
 st.markdown("""
     <style>
-    .footer-container { text-align: center; margin-top: 40px; line-height: 1.0 !important; }
-    .idea-marcia { font-family: 'Gabriola', serif; font-size: 22px; color: #666; margin-bottom: -15px !important; }
-    .footer-label { font-family: 'Bodoni MT', serif; font-size: 14px; color: #444; font-style: italic; margin-bottom: -25px !important; }
-    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 38px; color: #2E7D32; font-weight: bold; }
+    .footer-container { 
+        text-align: center; 
+        margin-top: 60px; 
+        padding-bottom: 20px;
+    }
     
-    .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
+    .idea-marcia { 
+        font-family: 'Gabriola', serif; 
+        font-size: 24px; 
+        color: #666; 
+        line-height: 1.2; /* Espaço suficiente para não sobrepor */
+        margin-bottom: 5px !important;
+    }
+    
+    .footer-label { 
+        font-family: 'Bodoni MT', serif; 
+        font-size: 16px; 
+        color: #444; 
+        font-style: italic;
+        line-height: 1.5; /* Padrão Word 1.5 para o rótulo */
+        margin-bottom: 0px !important;
+    }
+    
+    .footer-gabriola { 
+        font-family: 'Gabriola', serif; 
+        font-size: 42px; 
+        color: #2E7D32; 
+        font-weight: bold;
+        line-height: 1.1; /* Ajuste fino para a fonte artística */
+        margin-top: 5px !important;
+    }
+    
+    /* Botões de Compartilhamento */
+    .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 15px; margin-bottom: 20px; }
     .btn-link { text-decoration: none; flex: 1; }
     .custom-st-btn {
         display: flex; align-items: center; justify-content: center;
         background-color: white; color: rgb(49, 51, 63);
         width: 100%; border-radius: 0.5rem; border: 1px solid rgba(49, 51, 63, 0.2);
-        height: 38.4px; font-size: 14px; text-align: center; transition: 0.3s;
+        height: 38.4px; font-size: 14px; text-align: center;
     }
-    .custom-st-btn:hover { border-color: rgb(255, 75, 75); color: rgb(255, 75, 75); }
     </style>
     """, unsafe_allow_html=True)
 
