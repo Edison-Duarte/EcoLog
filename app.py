@@ -111,12 +111,12 @@ with st.expander("➕ Registrar Coleta", expanded=True):
             st.session_state.input_key += 1
             st.rerun()
 
-# --- 6. GRÁFICO E RELATÓRIOS (VERSÃO CORRIGIDA: ORDEM CRONOLÓGICA) ---
+# --- 6. GRÁFICO E RELATÓRIOS (CORREÇÃO FINAL DE ORDEM CRONOLÓGICA) ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
     
-    # 1. Filtros de Seleção
+    # Filtros
     f_col1, f_col2, f_col3 = st.columns([1, 1, 1.2])
     with f_col1:
         u_ops = sorted(st.session_state.db['Unidade'].unique())
@@ -125,15 +125,12 @@ if not st.session_state.db.empty:
         t_ops = sorted(st.session_state.db['Tipo'].unique())
         t_sel = st.multiselect("♻️ Materiais:", t_ops, default=t_ops)
     with f_col3:
-        # Garantimos que as datas para o calendário estejam limpas
         data_min = st.session_state.db['Data'].min().date()
         data_max = st.session_state.db['Data'].max().date()
         periodo_sel = st.date_input("📅 Período:", value=(data_min, data_max), format="DD/MM/YYYY")
 
-    # 2. Slider de Agrupamento
     p_graf = st.select_slider("Agrupar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     
-    # Aplicação dos Filtros no DataFrame
     if len(periodo_sel) == 2:
         start_date, end_date = periodo_sel
         mask = (st.session_state.db['Data'].dt.date >= start_date) & \
@@ -145,40 +142,36 @@ if not st.session_state.db.empty:
         df_f = pd.DataFrame()
 
     if not df_f.empty:
-        # ORDENAÇÃO BRUTA: Garante que os dados estejam na ordem do tempo antes de agrupar
+        # 1. Ordenação cronológica rigorosa
         df_f = df_f.sort_values('Data')
         
-        # 3. Lógica do Gráfico
         freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
         
-        # Agrupamento mantendo o índice temporal para não perder a ordem
+        # 2. Agrupamento mantendo o índice como objeto de data
         resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
         
-        # Forçamos a ordenação pelo índice (data real) antes de converter para texto
+        # 3. Forçar reordenação pelo índice temporal (Janeiro -> Fevereiro)
         resumo_grafico = resumo_grafico.sort_index()
         
-        # 4. Formatação Visual (Tradução e Padrão BR)
+        # 4. Formatação do Eixo X sem quebrar a ordem do Pandas
         meses_pt = {1:"Jan", 2:"Fev", 3:"Mar", 4:"Abr", 5:"Mai", 6:"Jun", 7:"Jul", 8:"Ago", 9:"Set", 10:"Out", 11:"Nov", 12:"Dez"}
         
         if p_graf == "Semanal": 
             resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%y')
         elif p_graf == "Mensal": 
-            # Criamos o rótulo mantendo a ordem que o sort_index() definiu
+            # AQUI ESTÁ O TRUQUE: Mantemos a ordem do index e apenas renomeamos
             resumo_grafico.index = [f"{meses_pt[d.month]}/{d.year}" for d in resumo_grafico.index]
         else: 
             resumo_grafico.index = resumo_grafico.index.strftime('%Y')
         
-        # Exibição do Gráfico (Respeitará a ordem das linhas do DataFrame)
+        # 5. Exibição (O Streamlit agora respeita a ordem das linhas que enviamos)
         st.bar_chart(resumo_grafico)
 
-        # --- 5. EXPORTAÇÃO (PDF, WhatsApp, E-mail) ---
+        # --- EXPORTAÇÃO ---
         st.write("📤 **Exportar Seleção Atual:**")
-        
-        # PDF
         pdf_b = gerar_pdf_completo(df_f) 
-        st.download_button("📥 Baixar Relatório em PDF", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
+        st.download_button("📥 Baixar PDF", pdf_b, "relatorio.pdf", "application/pdf", use_container_width=True)
 
-        # Texto para Redes Sociais
         total_kg = df_f['Peso (kg)'].sum()
         txt_raw = f"♻️ *RELATÓRIO ECOLOG DETALHADO*%0APeríodo: {start_date.strftime('%d/%m/%y')} a {end_date.strftime('%d/%m/%y')}%0A-----------------------------%0A"
         for _, row in df_f.sort_values('Data').iterrows():
@@ -193,12 +186,7 @@ if not st.session_state.db.empty:
         link_w = f"https://wa.me/?text={txt_raw}"
         link_e = f"mailto:?subject=Relatorio EcoLog&body={txt_raw.replace('%0A', '%0D%0A')}"
 
-        st.markdown(f"""
-            <div class="btn-row">
-                <a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a>
-                <a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
     # --- 7. GESTÃO DE DADOS ---
     st.divider()
     with st.expander("⚙️ Gerenciar Banco de Dados"):
@@ -222,4 +210,5 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
+
 
