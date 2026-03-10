@@ -50,26 +50,71 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (RODAPÉ E BOTÕES) ---
+# --- 3. CSS CUSTOMIZADO (RODAPÉ E BOTÕES ATUALIZADOS) ---
 st.markdown("""
     <style>
-    .footer-container { text-align: center; margin-top: 60px; padding-bottom: 20px; }
-    .idea-marcia { font-family: 'Gabriola', serif; font-size: 24px; color: #666; line-height: 1.4 !important; margin-bottom: 8px !important; }
-    .footer-label { font-family: 'Bodoni MT', serif; font-size: 16px; color: #444; font-style: italic; line-height: 1.5; margin-bottom: 5px !important; }
-    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; font-weight: bold; line-height: 1.2; margin-top: 10px !important; }
-    
-    .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 15px; margin-bottom: 20px; }
-    .btn-link { text-decoration: none; flex: 1; }
-    .custom-st-btn {
-        display: flex; align-items: center; justify-content: center;
-        background-color: white; color: rgb(49, 51, 63);
-        width: 100%; border-radius: 0.5rem; border: 1px solid rgba(49, 51, 63, 0.2);
-        height: 38.4px; font-size: 14px; text-align: center; transition: 0.3s;
+    /* Estilização do Rodapé - Tamanhos Reduzidos */
+    .footer-container { 
+        text-align: center; 
+        margin-top: 60px; 
+        padding-bottom: 20px;
     }
-    .custom-st-btn:hover { border-color: rgb(255, 75, 75); color: rgb(255, 75, 75); }
+    .idea-marcia { 
+        font-family: 'Gabriola', serif; 
+        font-size: 18px; /* Reduzido de 24px */
+        color: #666; 
+        line-height: 1.2 !important; 
+        margin-bottom: 5px !important;
+    }
+    .footer-label { 
+        font-family: 'Bodoni MT', serif; 
+        font-size: 13px; /* Reduzido de 16px */
+        color: #444; 
+        font-style: italic; 
+        line-height: 1.0;
+        margin-bottom: 0px !important;
+    }
+    .footer-gabriola { 
+        font-family: 'Gabriola', serif; 
+        font-size: 32px; /* Reduzido de 42px */
+        color: #2E7D32; 
+        font-weight: bold; 
+        line-height: 1.1; 
+        margin-top: 5px !important;
+    }
+    
+    /* Botões de Compartilhamento (Lado a Lado) */
+    .btn-row { 
+        display: flex; 
+        gap: 10px; 
+        width: 100%; 
+        margin-top: 15px; 
+        margin-bottom: 20px; 
+    }
+    .btn-link { 
+        text-decoration: none; 
+        flex: 1; 
+    }
+    .custom-st-btn {
+        display: flex; 
+        align-items: center; 
+        justify-content: center;
+        background-color: white; 
+        color: rgb(49, 51, 63);
+        width: 100%; 
+        border-radius: 0.5rem; 
+        border: 1px solid rgba(49, 51, 63, 0.2);
+        height: 38.4px; 
+        font-size: 14px; 
+        text-align: center; 
+        transition: 0.3s;
+    }
+    .custom-st-btn:hover { 
+        border-color: rgb(255, 75, 75); 
+        color: rgb(255, 75, 75); 
+    }
     </style>
     """, unsafe_allow_html=True)
-
 # --- 4. FUNÇÃO PDF ---
 def gerar_pdf_completo(df):
     pdf = FPDF()
@@ -77,20 +122,33 @@ def gerar_pdf_completo(df):
     pdf.set_font("Arial", "B", 16)
     pdf.cell(190, 10, "EcoLog - Relatorio de Residuos", ln=True, align='C')
     pdf.ln(10)
+    
+    # Cabeçalho da Tabela
     pdf.set_font("Arial", "B", 10)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(35, 10, "Data", 1, 0, 'C', True)
     pdf.cell(50, 10, "Unidade", 1, 0, 'C', True)
     pdf.cell(60, 10, "Tipo", 1, 0, 'C', True)
     pdf.cell(45, 10, "Peso (kg)", 1, 1, 'C', True)
+    
+    # Dados
     pdf.set_font("Arial", "", 10)
+    total_peso = 0
     for _, r in df.sort_values('Data', ascending=False).iterrows():
+        peso = r['Peso (kg)']
+        total_peso += peso
         pdf.cell(35, 10, r['Data'].strftime('%d/%m/%Y'), 1, 0, 'C')
         pdf.cell(50, 10, str(r['Unidade'])[:20], 1, 0, 'C')
         pdf.cell(60, 10, str(r['Tipo'])[:25], 1, 0, 'C')
-        pdf.cell(45, 10, f"{r['Peso (kg)']:.2f}", 1, 1, 'C')
+        pdf.cell(45, 10, f"{peso:.2f}", 1, 1, 'C')
+    
+    # Linha de Total
+    pdf.set_font("Arial", "B", 10)
+    pdf.set_fill_color(220, 230, 220)
+    pdf.cell(145, 10, "TOTAL GERAL (kg)", 1, 0, 'R', True)
+    pdf.cell(45, 10, f"{total_peso:.2f}", 1, 1, 'C', True)
+    
     return bytes(pdf.output())
-
 # --- 5. INTERFACE DE ENTRADA ---
 st.title("♻️ EcoLog - Gestão de Resíduos")
 
@@ -212,6 +270,7 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
+
 
 
 
