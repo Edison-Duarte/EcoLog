@@ -131,12 +131,11 @@ with st.expander("➕ Registrar Coleta", expanded=True):
         else:
             st.warning("O peso deve ser maior que zero.")
 
-# --- 6. GRÁFICO DINÂMICO COM SLIDER DE AGRUPAMENTO ---
+# --- 6. GRÁFICO DINÂMICO ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
     
-    # 1. Filtros de Seleção
     f_col1, f_col2, f_col3 = st.columns([1, 1, 1.2])
     with f_col1:
         u_ops = sorted(st.session_state.db['Unidade'].unique())
@@ -149,10 +148,9 @@ if not st.session_state.db.empty:
         data_max = st.session_state.db['Data'].max().date()
         periodo_sel = st.date_input("📅 Período:", value=(data_min, data_max), min_value=data_min, max_value=data_max)
 
-    # 2. BARRA DESLIZANTE (O Filtro que você solicitou)
+    # BARRA DESLIZANTE RESTAURADA
     p_graf = st.select_slider("Agrupar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     
-    # Lógica de Filtragem
     if len(periodo_sel) == 2:
         start_date, end_date = periodo_sel
         mask = (st.session_state.db['Data'].dt.date >= start_date) & \
@@ -164,22 +162,27 @@ if not st.session_state.db.empty:
         df_f = pd.DataFrame()
 
     if not df_f.empty:
-        df_f = df_f.sort_values('Data', ascending=False)
+        # Ordenamos os dados antes de agrupar
+        df_f = df_f.sort_values('Data')
         
-        # 3. Lógica do Gráfico baseada no Slider
-        # Mapeamento para o Pandas: W (Week), ME (Month End), YE (Year End)
+        # Mapeamento de Frequência (ME = Month End, essencial para o Pandas atual)
         freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
         
+        # Criamos o resumo para o gráfico
         resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
         
-        # Formatação do eixo X conforme a escolha
-        if p_graf == "Semanal": resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
-        elif p_graf == "Mensal": resumo_grafico.index = resumo_grafico.index.strftime('%m/%Y')
-        else: resumo_grafico.index = resumo_grafico.index.strftime('%Y')
+        # FORMATAÇÃO DO EIXO X (Transformar em Texto para não desregular)
+        if p_graf == "Semanal": 
+            resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
+        elif p_graf == "Mensal": 
+            resumo_grafico.index = resumo_grafico.index.strftime('%b/%Y') # Ex: Jan/2024
+        else: 
+            resumo_grafico.index = resumo_grafico.index.strftime('%Y')
         
+        # Exibe o gráfico de barras
         st.bar_chart(resumo_grafico)
 
-        # Botão de PDF
+        # --- EXPORTAÇÃO (Fica logo abaixo do gráfico) ---
         st.write("📤 **Exportar Seleção Atual:**")
         pdf_b = gerar_pdf_completo(df_f) 
         st.download_button("📥 Gerar PDF do Período", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
@@ -212,4 +215,5 @@ st.markdown("""
         <p class="footer-gabriola">Edison Duarte Filho®</p>
     </div>
 """, unsafe_allow_html=True)
+
 
