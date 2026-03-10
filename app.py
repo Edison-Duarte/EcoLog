@@ -111,12 +111,12 @@ with st.expander("➕ Registrar Coleta", expanded=True):
             st.session_state.input_key += 1
             st.rerun()
 
-# --- 6. GRÁFICO E RELATÓRIOS (CORREÇÃO FINAL DE ORDEM CRONOLÓGICA) ---
+# --- 6. GRÁFICO E RELATÓRIOS (ORDEM NUMÉRICA DEFINITIVA) ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
     
-    # Filtros
+    # 1. Filtros
     f_col1, f_col2, f_col3 = st.columns([1, 1, 1.2])
     with f_col1:
         u_ops = sorted(st.session_state.db['Unidade'].unique())
@@ -129,6 +129,7 @@ if not st.session_state.db.empty:
         data_max = st.session_state.db['Data'].max().date()
         periodo_sel = st.date_input("📅 Período:", value=(data_min, data_max), format="DD/MM/YYYY")
 
+    # 2. Slider de Agrupamento
     p_graf = st.select_slider("Agrupar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     
     if len(periodo_sel) == 2:
@@ -142,35 +143,32 @@ if not st.session_state.db.empty:
         df_f = pd.DataFrame()
 
     if not df_f.empty:
-        # 1. Ordenação cronológica rigorosa
+        # Ordenação cronológica antes de agrupar
         df_f = df_f.sort_values('Data')
         
+        # 3. Lógica do Gráfico
         freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
-        
-        # 2. Agrupamento mantendo o índice como objeto de data
         resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
         
-        # 3. Forçar reordenação pelo índice temporal (Janeiro -> Fevereiro)
+        # Garantir ordem pelo índice de data
         resumo_grafico = resumo_grafico.sort_index()
         
-        # 4. Formatação do Eixo X sem quebrar a ordem do Pandas
-        meses_pt = {1:"Jan", 2:"Fev", 3:"Mar", 4:"Abr", 5:"Mai", 6:"Jun", 7:"Jul", 8:"Ago", 9:"Set", 10:"Out", 11:"Nov", 12:"Dez"}
-        
+        # 4. Formatação do Eixo X (01/2026, 02/2026...)
         if p_graf == "Semanal": 
-            resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%y')
+            resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
         elif p_graf == "Mensal": 
-            # AQUI ESTÁ O TRUQUE: Mantemos a ordem do index e apenas renomeamos
-            resumo_grafico.index = [f"{meses_pt[d.month]}/{d.year}" for d in resumo_grafico.index]
+            # Formato numérico: MM/AAAA
+            resumo_grafico.index = resumo_grafico.index.strftime('%m/%Y')
         else: 
             resumo_grafico.index = resumo_grafico.index.strftime('%Y')
         
-        # 5. Exibição (O Streamlit agora respeita a ordem das linhas que enviamos)
+        # Exibição do Gráfico
         st.bar_chart(resumo_grafico)
 
-        # --- EXPORTAÇÃO ---
+        # --- 5. EXPORTAÇÃO (PDF, WHATSAPP, EMAIL) ---
         st.write("📤 **Exportar Seleção Atual:**")
         pdf_b = gerar_pdf_completo(df_f) 
-        st.download_button("📥 Baixar PDF", pdf_b, "relatorio.pdf", "application/pdf", use_container_width=True)
+        st.download_button("📥 Baixar Relatório em PDF", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
 
         total_kg = df_f['Peso (kg)'].sum()
         txt_raw = f"♻️ *RELATÓRIO ECOLOG DETALHADO*%0APeríodo: {start_date.strftime('%d/%m/%y')} a {end_date.strftime('%d/%m/%y')}%0A-----------------------------%0A"
@@ -186,8 +184,12 @@ if not st.session_state.db.empty:
         link_w = f"https://wa.me/?text={txt_raw}"
         link_e = f"mailto:?subject=Relatorio EcoLog&body={txt_raw.replace('%0A', '%0D%0A')}"
 
-        st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
-    # --- 7. GESTÃO DE DADOS ---
+        st.markdown(f"""
+            <div class="btn-row">
+                <a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a>
+                <a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a>
+            </div>
+        """, unsafe_allow_html=True)
     st.divider()
     with st.expander("⚙️ Gerenciar Banco de Dados"):
         df_gestao = st.session_state.db.copy()
@@ -210,5 +212,6 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
+
 
 
