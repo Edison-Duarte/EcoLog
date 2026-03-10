@@ -7,83 +7,73 @@ from fpdf import FPDF
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="EcoLog - Gestão de Resíduos", page_icon="♻️", layout="centered")
 
-# --- 2. CONEXÃO COM GOOGLE SHEETS ---
+# --- 2. CONEXÃO COM GOOGLE SHEETS (CORREÇÃO DE FUSO HORÁRIO) ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados():
     try:
-        # Lê a planilha em tempo real
+        # Lê a planilha ignorando o cache para dados sempre novos
         df = conn.read(ttl=0)
         if df is None or df.empty:
             return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
         
-        df['Data'] = pd.to_datetime(df['Data'])
+        # O SEGREDO: Converter para datetime e forçar apenas a DATA (remove interferência de horas/fuso)
+        df['Data'] = pd.to_datetime(df['Data']).dt.date
+        df['Data'] = pd.to_datetime(df['Data']) # Volta para datetime para o Streamlit processar
         return df
     except Exception as e:
-        st.error(f"Erro ao conectar com Google Sheets: {e}")
+        st.error(f"Erro ao carregar dados: {e}")
         return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
 
 def salvar_dados(df):
     try:
-        # Converte para string para garantir gravação correta no Sheets
         df_save = df.copy()
-        df_save['Data'] = df_save['Data'].dt.strftime('%Y-%m-%d')
+        # Salva como texto AAAA-MM-DD para o Google Sheets não alterar a data
+        df_save['Data'] = pd.to_datetime(df_save['Data']).dt.strftime('%Y-%m-%d')
         conn.update(data=df_save)
         st.cache_data.clear()
     except Exception as e:
-        st.error(f"Erro ao salvar: {e}")
+        st.error(f"Erro ao salvar no Google Sheets: {e}")
 
-# Inicializa o banco na sessão
+# Inicialização do estado da sessão
 if 'db' not in st.session_state:
     st.session_state.db = carregar_dados()
 
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (RODAPÉ CORRIGIDO SEM SOBREPOSIÇÃO) ---
+# --- 3. CSS CUSTOMIZADO (RODAPÉ E BOTÕES) ---
 st.markdown("""
     <style>
+    /* Rodapé Corrigido: Sem sobreposição e com respiro */
     .footer-container { 
         text-align: center; 
         margin-top: 60px; 
         padding-bottom: 20px;
     }
-    
     .idea-marcia { 
-        font-family: 'Gabriola', serif; 
-        font-size: 24px; 
-        color: #666; 
-        line-height: 1.2; /* Espaço suficiente para não sobrepor */
-        margin-bottom: 5px !important;
+        font-family: 'Gabriola', serif; font-size: 24px; color: #666; 
+        line-height: 1.4 !important; margin-bottom: 8px !important;
     }
-    
     .footer-label { 
-        font-family: 'Bodoni MT', serif; 
-        font-size: 16px; 
-        color: #444; 
-        font-style: italic;
-        line-height: 1.5; /* Padrão Word 1.5 para o rótulo */
-        margin-bottom: 0px !important;
+        font-family: 'Bodoni MT', serif; font-size: 16px; color: #444; 
+        font-style: italic; line-height: 1.5; margin-bottom: 5px !important;
     }
-    
     .footer-gabriola { 
-        font-family: 'Gabriola', serif; 
-        font-size: 42px; 
-        color: #2E7D32; 
-        font-weight: bold;
-        line-height: 1.1; /* Ajuste fino para a fonte artística */
-        margin-top: 5px !important;
+        font-family: 'Gabriola', serif; font-size: 42px; color: #2E7D32; 
+        font-weight: bold; line-height: 1.2; margin-top: 10px !important;
     }
     
-    /* Botões de Compartilhamento */
+    /* Botões Lado a Lado */
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 15px; margin-bottom: 20px; }
     .btn-link { text-decoration: none; flex: 1; }
     .custom-st-btn {
         display: flex; align-items: center; justify-content: center;
         background-color: white; color: rgb(49, 51, 63);
         width: 100%; border-radius: 0.5rem; border: 1px solid rgba(49, 51, 63, 0.2);
-        height: 38.4px; font-size: 14px; text-align: center;
+        height: 38.4px; font-size: 14px; text-align: center; transition: 0.3s;
     }
+    .custom-st-btn:hover { border-color: rgb(255, 75, 75); color: rgb(255, 75, 75); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -124,15 +114,16 @@ with st.expander("➕ Registrar Coleta", expanded=True):
             novo = pd.DataFrame({'Data': [pd.to_datetime(data_input)], 'Unidade': [unidade], 'Tipo': [tipo], 'Peso (kg)': [peso]})
             st.session_state.db = pd.concat([st.session_state.db, novo], ignore_index=True)
             salvar_dados(st.session_state.db)
-            st.success("Dados salvos no histórico permanente!")
+            st.success("Registro sincronizado com sucesso!")
             st.session_state.input_key += 1
             st.rerun()
 
-# --- 6. GRÁFICO E FILTROS ---
+# --- 6. GRÁFICO E RELATÓRIOS ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
     
+    # Filtros
     f_col1, f_col2, f_col3 = st.columns([1, 1, 1.2])
     with f_col1:
         u_ops = sorted(st.session_state.db['Unidade'].unique())
@@ -145,78 +136,59 @@ if not st.session_state.db.empty:
         data_max = st.session_state.db['Data'].max().date()
         periodo_sel = st.date_input("📅 Período:", value=(data_min, data_max))
 
+    # Barra Deslizante de Agrupamento
     p_graf = st.select_slider("Agrupar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     
     if len(periodo_sel) == 2:
         start_date, end_date = periodo_sel
-        mask = (st.session_state.db['Data'].dt.date >= start_date) & (st.session_state.db['Data'].dt.date <= end_date) & (st.session_state.db['Unidade'].isin(u_sel)) & (st.session_state.db['Tipo'].isin(t_sel))
+        mask = (st.session_state.db['Data'].dt.date >= start_date) & \
+               (st.session_state.db['Data'].dt.date <= end_date) & \
+               (st.session_state.db['Unidade'].isin(u_sel)) & \
+               (st.session_state.db['Tipo'].isin(t_sel))
         df_f = st.session_state.db.loc[mask].copy()
     else:
         df_f = pd.DataFrame()
 
     if not df_f.empty:
         df_f = df_f.sort_values('Data')
+        # Lógica de Gráfico Corrigida
         freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
         resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
         
-        # Formatação do eixo X como Texto para não desregular o gráfico
-        if p_graf == "Semanal": resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
+        # Formata o eixo X como texto para evitar "desregulação"
+        if p_graf == "Semanal": resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%y')
         elif p_graf == "Mensal": resumo_grafico.index = resumo_grafico.index.strftime('%b/%Y')
         else: resumo_grafico.index = resumo_grafico.index.strftime('%Y')
         
         st.bar_chart(resumo_grafico)
 
-       # --- EXPORTAÇÃO E COMPARTILHAMENTO ---
+        # --- EXPORTAÇÃO COMPLETA (PDF, WHATSAPP, EMAIL) ---
         st.write("📤 **Exportar Seleção Atual:**")
-        
-        # 1. Botão de PDF (mantido)
         pdf_b = gerar_pdf_completo(df_f) 
         st.download_button("📥 Baixar Relatório em PDF", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
 
-        # 2. Montagem do Texto Detalhado para WhatsApp/E-mail
+        # Montagem do Texto Detalhado
         total_kg = df_f['Peso (kg)'].sum()
-        start_date, end_date = periodo_sel
-        
-        # Cabeçalho
-        txt_raw = f"♻️ *RELATÓRIO ECOLOG - DETALHADO*%0A"
-        txt_raw += f"Período: {start_date.strftime('%d/%m/%y')} a {end_date.strftime('%d/%m/%y')}%0A"
-        txt_raw += "-----------------------------%0A"
-        
-        # Listagem de cada item (O Relatório Completo)
-        # Ordenamos por data para o texto fazer sentido cronológico
+        txt_raw = f"♻️ *RELATÓRIO ECOLOG DETALHADO*%0APeríodo: {start_date.strftime('%d/%m/%y')} a {end_date.strftime('%d/%m/%y')}%0A-----------------------------%0A"
         for _, row in df_f.sort_values('Data').iterrows():
-            data_str = row['Data'].strftime('%d/%m/%y')
-            txt_raw += f"📅 {data_str} | {row['Unidade']}%0A"
-            txt_raw += f"└ {row['Tipo']}: {row['Peso (kg)']:.2f} kg%0A%0A"
+            txt_raw += f"📅 {row['Data'].strftime('%d/%m/%y')} | {row['Unidade']}%0A└ {row['Tipo']}: {row['Peso (kg)']:.2f} kg%0A%0A"
         
-        txt_raw += "-----------------------------%0A"
-        
-        # Resumo consolidado por tipo
-        resumo_tipo = df_f.groupby('Tipo')['Peso (kg)'].sum()
-        txt_raw += "*RESUMO POR MATERIAL:*%0A"
-        for t, p in resumo_tipo.items():
+        txt_raw += "-----------------------------%0A*RESUMO POR TIPO:*%0A"
+        res_t = df_f.groupby('Tipo')['Peso (kg)'].sum()
+        for t, p in res_t.items():
             txt_raw += f"• {t}: {p:.2f} kg%0A"
-            
-        # Total Geral
-        txt_raw += f"-----------------------------%0A"
-        txt_raw += f"🏆 *TOTAL GERAL: {total_kg:.2f} kg*"
+        txt_raw += f"-----------------------------%0A🏆 *TOTAL: {total_kg:.2f} kg*"
         
-        # Gerar os links
         link_w = f"https://wa.me/?text={txt_raw}"
-        # O replace garante que as quebras de linha funcionem em clientes de e-mail (Outlook/Gmail)
         link_e = f"mailto:?subject=Relatorio EcoLog&body={txt_raw.replace('%0A', '%0D%0A')}"
 
-        # Botões lado a lado
         st.markdown(f"""
             <div class="btn-row">
-                <a href="{link_w}" target="_blank" class="btn-link">
-                    <div class="custom-st-btn">📲 WhatsApp</div>
-                </a>
-                <a href="{link_e}" class="btn-link">
-                    <div class="custom-st-btn">📧 E-mail</div>
-                </a>
+                <a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a>
+                <a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a>
             </div>
         """, unsafe_allow_html=True)
+
     # --- 7. GESTÃO DE DADOS ---
     st.divider()
     with st.expander("⚙️ Gerenciar Banco de Dados"):
