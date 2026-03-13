@@ -50,7 +50,7 @@ st.markdown("""
     }
     .idea-marcia { 
         font-family: 'Gabriola', serif; 
-        font-size: 24px; 
+        font-size: 20px; 
         color: #666; 
         line-height: 0.9 !important; /* Espaçamento muito curto */
         margin-bottom: 2px !important; 
@@ -237,4 +237,5 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
+
 
