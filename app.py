@@ -40,13 +40,37 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (RODAPÉ E ASSINATURA REDUZIDOS) ---
+# --- 3. CSS CUSTOMIZADO (ESPAÇAMENTO RESTAURADO) ---
 st.markdown("""
     <style>
-    .footer-container { text-align: center; margin-top: 60px; padding-bottom: 20px; }
-    .idea-marcia { font-family: 'Gabriola', serif; font-size: 18px; color: #666; margin-bottom: 5px !important; }
-    .footer-label { font-family: 'Bodoni MT', serif; font-size: 13px; color: #444; font-style: italic; }
-    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 26px; color: #2E7D32; font-weight: bold; margin-top: 5px !important; }
+    .footer-container { 
+        text-align: center; 
+        margin-top: 60px; 
+        padding-bottom: 20px; 
+    }
+    .idea-marcia { 
+        font-family: 'Gabriola', serif; 
+        font-size: 24px; 
+        color: #666; 
+        line-height: 1.4 !important; 
+        margin-bottom: 8px !important; 
+    }
+    .footer-label { 
+        font-family: 'Bodoni MT', serif; 
+        font-size: 16px; 
+        color: #444; 
+        font-style: italic; 
+        line-height: 1.5; 
+        margin-bottom: 5px !important; 
+    }
+    .footer-gabriola { 
+        font-family: 'Gabriola', serif; 
+        font-size: 26px; /* Mantive o tamanho menor que você pediu por último */
+        color: #2E7D32; 
+        font-weight: bold; 
+        line-height: 1.2; 
+        margin-top: 10px !important; 
+    }
     
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 15px; margin-bottom: 20px; }
     .btn-link { text-decoration: none; flex: 1; }
@@ -59,7 +83,6 @@ st.markdown("""
     .custom-st-btn:hover { border-color: rgb(255, 75, 75); color: rgb(255, 75, 75); }
     </style>
     """, unsafe_allow_html=True)
-
 # --- 4. FUNÇÃO PDF (COM TOTAL GERAL) ---
 def gerar_pdf_completo(df):
     pdf = FPDF()
