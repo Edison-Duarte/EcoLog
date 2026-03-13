@@ -215,54 +215,68 @@ if not st.session_state.db.empty:
 
         st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
 
-   # --- 7. GESTÃO DE DADOS (COM TRAVA DE UNIDADE E SENHA) ---
+  # --- 7. GESTÃO DE DADOS (VISUALIZAÇÃO TOTAL / APAGAR POR UNIDADE) ---
     st.divider()
     with st.expander("⚙️ Gerenciar Banco de Dados"):
-        # 1. Filtramos o banco apenas para mostrar o que pertence à unidade logada
-        # 'u_login' vem da variável de login da Seção 5
-        if 'u_login' in locals() and u_login != "Selecione...":
-            df_unidade = st.session_state.db[st.session_state.db['Unidade'] == u_login].copy()
+        if not st.session_state.db.empty:
+            st.write("📌 *Todos os registros estão visíveis abaixo. Para excluir, selecione os itens da **sua** unidade.*")
             
-            if not df_unidade.empty:
-                st.warning(f"Exibindo apenas registros de: **{u_login}**")
-                
-                # Prepara a tabela para edição
-                df_gestao = df_unidade.copy()
-                df_gestao['Data'] = df_gestao['Data'].dt.strftime('%d/%m/%Y')
-                df_gestao.insert(0, "Selecionar", False)
-                
-                tabela_editada = st.data_editor(
-                    df_gestao, 
-                    column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)},
-                    disabled=["Data", "Unidade", "Tipo", "Peso (kg)"],
-                    hide_index=True, 
-                    use_container_width=True,
-                    key="editor_gestao"
-                )
-                
-                # 2. Solicitação de Senha para exclusão
-                senha_exclusao = st.text_input(f"Confirme a senha de {u_login} para excluir:", type="password", key="senha_del")
-                
-                if st.button("🗑️ Confirmar Exclusão Selecionados", type="primary", use_container_width=True):
-                    # Valida se a senha de exclusão é a mesma da unidade logada
-                    if senha_exclusao == SENHAS_UNIDADES[u_login]:
-                        # Identifica os IDs/Registros que permanecerão
-                        indices_para_excluir = tabela_editada[tabela_editada["Selecionar"] == True].index
+            # 1. Prepara a tabela com TODO o histórico
+            df_gestao = st.session_state.db.copy()
+            df_gestao['Data'] = df_gestao['Data'].dt.strftime('%d/%m/%Y')
+            df_gestao.insert(0, "Selecionar", False)
+            
+            tabela_editada = st.data_editor(
+                df_gestao, 
+                column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)},
+                disabled=["Data", "Unidade", "Tipo", "Peso (kg)"],
+                hide_index=True, 
+                use_container_width=True,
+                key="editor_gestao_geral"
+            )
+            
+            # 2. Área de validação para exclusão
+            st.markdown("---")
+            col_del1, col_del2 = st.columns([1, 1])
+            
+            with col_del1:
+                u_del = st.selectbox("Sua Unidade (para excluir):", list(SENHAS_UNIDADES.keys()), key="u_del_confirm")
+            with col_del2:
+                senha_del = st.text_input("Senha da Unidade:", type="password", key="s_del_confirm")
+            
+            if st.button("🗑️ Apagar Itens Selecionados", type="primary", use_container_width=True):
+                # A. Valida a senha primeiro
+                if senha_del == SENHAS_UNIDADES[u_del]:
+                    
+                    # B. Identifica os índices que o usuário marcou no editor
+                    indices_selecionados = tabela_editada[tabela_editada["Selecionar"] == True].index
+                    
+                    # C. Filtra, dentre os selecionados, APENAS os que são da unidade dele
+                    # Usamos o df original para bater os índices com a coluna 'Unidade'
+                    indices_validos_para_excluir = [
+                        idx for idx in indices_selecionados 
+                        if st.session_state.db.loc[idx, 'Unidade'] == u_del
+                    ]
+                    
+                    if len(indices_validos_para_excluir) > 0:
+                        # D. Remove apenas os autorizados
+                        st.session_state.db = st.session_state.db.drop(indices_validos_para_excluir).reset_index(drop=True)
+                        salvar_dados(st.session_state.db)
                         
-                        if len(indices_para_excluir) > 0:
-                            # Remove do banco de dados global (db) os itens selecionados daquela unidade
-                            st.session_state.db = st.session_state.db.drop(indices_para_excluir).reset_index(drop=True)
-                            salvar_dados(st.session_state.db)
-                            st.success(f"Registros de {u_login} excluídos com sucesso!")
-                            st.rerun()
+                        # Mensagem de feedback detalhada
+                        if len(indices_validos_para_excluir) < len(indices_selecionados):
+                            st.warning(f"Alguns itens não foram apagados pois não pertencem a {u_del}.")
                         else:
-                            st.info("Nenhum registro selecionado para exclusão.")
-                    elif senha_exclusao != "":
-                        st.error("⚠️ Senha incorreta! A exclusão foi bloqueada.")
-            else:
-                st.info(f"Não há registros históricos para a unidade {u_login}.")
+                            st.success(f"Registros de {u_del} excluídos com sucesso!")
+                        
+                        st.rerun()
+                    else:
+                        st.error(f"Erro: Você não selecionou nenhum registro pertencente a **{u_del}**.")
+                
+                elif senha_del != "":
+                    st.error("⚠️ Senha incorreta para a unidade selecionada.")
         else:
-            st.info("Faça login em uma unidade na Seção de Registro para gerenciar dados.")
+            st.info("O banco de dados está vazio.")
 
 # --- 8. RODAPÉ ---
 st.write("---")
@@ -273,6 +287,7 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
+
 
 
 
