@@ -40,36 +40,36 @@ if 'db' not in st.session_state:
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (ESPAÇAMENTO RESTAURADO) ---
+# --- 3. CSS CUSTOMIZADO (REDUZINDO ESPAÇAMENTO ENTRE LINHAS) ---
 st.markdown("""
     <style>
     .footer-container { 
         text-align: center; 
-        margin-top: 60px; 
+        margin-top: 40px; /* Reduzido o espaço acima do rodapé */
         padding-bottom: 20px; 
     }
     .idea-marcia { 
         font-family: 'Gabriola', serif; 
         font-size: 24px; 
         color: #666; 
-        line-height: 1.4 !important; 
-        margin-bottom: 8px !important; 
+        line-height: 0.9 !important; /* Espaçamento muito curto */
+        margin-bottom: 2px !important; 
     }
     .footer-label { 
         font-family: 'Bodoni MT', serif; 
         font-size: 16px; 
         color: #444; 
         font-style: italic; 
-        line-height: 1.5; 
-        margin-bottom: 5px !important; 
+        line-height: 0.9 !important; /* Espaçamento muito curto */
+        margin-bottom: 0px !important; 
     }
     .footer-gabriola { 
         font-family: 'Gabriola', serif; 
-        font-size: 26px; /* Mantive o tamanho menor que você pediu por último */
+        font-size: 26px; 
         color: #2E7D32; 
         font-weight: bold; 
-        line-height: 1.2; 
-        margin-top: 10px !important; 
+        line-height: 1.0 !important;
+        margin-top: 2px !important; 
     }
     
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 15px; margin-bottom: 20px; }
@@ -237,3 +237,4 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
+
