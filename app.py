@@ -12,21 +12,14 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados():
     try:
-        # Lê a planilha bruta sem cache
         df = conn.read(ttl=0)
         if df is None or df.empty:
             return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
         
-        # CORREÇÃO CRÍTICA: Força o entendimento de que o DIA vem primeiro (Padrão BR)
-        # Isso evita que 03/10 (10 de Março) vire 10/03 (03 de Outubro)
+        # Força padrão brasileiro na leitura para evitar inversão (Ex: Outubro por Março)
         df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
-        
-        # Remove registros que não puderam ser convertidos (limpeza)
         df = df.dropna(subset=['Data'])
-        
-        # Normaliza para objeto de data puro (sem horas/fuso)
         df['Data'] = pd.to_datetime(df['Data'].dt.date)
-        
         return df
     except Exception as e:
         st.error(f"Erro ao carregar dados: {e}")
@@ -35,87 +28,40 @@ def carregar_dados():
 def salvar_dados(df):
     try:
         df_save = df.copy()
-        # Salva no formato universal ISO (AAAA-MM-DD)
-        # O Google Sheets reconhece este formato sem inverter dia e mês em nenhum país
+        # Salva em formato universal ISO para o Google Sheets não bagunçar
         df_save['Data'] = pd.to_datetime(df_save['Data']).dt.strftime('%Y-%m-%d')
         conn.update(data=df_save)
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Erro ao salvar: {e}")
 
-# Inicialização do banco na sessão
 if 'db' not in st.session_state:
     st.session_state.db = carregar_dados()
 
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (ASSINATURA REDUZIDA) ---
+# --- 3. CSS CUSTOMIZADO (RODAPÉ REDUZIDO) ---
 st.markdown("""
     <style>
-    /* Estilização do Rodapé */
-    .footer-container { 
-        text-align: center; 
-        margin-top: 60px; 
-        padding-bottom: 20px;
-    }
-    .idea-marcia { 
-        font-family: 'Gabriola', serif; 
-        font-size: 18px; 
-        color: #666; 
-        line-height: 1.2 !important; 
-        margin-bottom: 5px !important;
-    }
-    .footer-label { 
-        font-family: 'Bodoni MT', serif; 
-        font-size: 13px; 
-        color: #444; 
-        font-style: italic; 
-        line-height: 1.0;
-        margin-bottom: 0px !important;
-    }
-    .footer-gabriola { 
-        font-family: 'Gabriola', serif; 
-        font-size: 26px; /* Diminuído de 32px para ficar mais discreto */
-        color: #2E7D32; 
-        font-weight: bold; 
-        line-height: 1.1; 
-        margin-top: 5px !important;
-    }
+    .footer-container { text-align: center; margin-top: 60px; padding-bottom: 20px; }
+    .idea-marcia { font-family: 'Gabriola', serif; font-size: 18px; color: #666; line-height: 1.2 !important; margin-bottom: 5px !important; }
+    .footer-label { font-family: 'Bodoni MT', serif; font-size: 13px; color: #444; font-style: italic; line-height: 1.0; }
+    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 26px; color: #2E7D32; font-weight: bold; line-height: 1.1; margin-top: 5px !important; }
     
-    /* Botões de Compartilhamento */
-    .btn-row { 
-        display: flex; 
-        gap: 10px; 
-        width: 100%; 
-        margin-top: 15px; 
-        margin-bottom: 20px; 
-    }
-    .btn-link { 
-        text-decoration: none; 
-        flex: 1; 
-    }
+    .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 15px; margin-bottom: 20px; }
+    .btn-link { text-decoration: none; flex: 1; }
     .custom-st-btn {
-        display: flex; 
-        align-items: center; 
-        justify-content: center;
-        background-color: white; 
-        color: rgb(49, 51, 63);
-        width: 100%; 
-        border-radius: 0.5rem; 
-        border: 1px solid rgba(49, 51, 63, 0.2);
-        height: 38.4px; 
-        font-size: 14px; 
-        text-align: center; 
-        transition: 0.3s;
+        display: flex; align-items: center; justify-content: center;
+        background-color: white; color: rgb(49, 51, 63);
+        width: 100%; border-radius: 0.5rem; border: 1px solid rgba(49, 51, 63, 0.2);
+        height: 38.4px; font-size: 14px; text-align: center; transition: 0.3s;
     }
-    .custom-st-btn:hover { 
-        border-color: rgb(255, 75, 75); 
-        color: rgb(255, 75, 75); 
-    }
+    .custom-st-btn:hover { border-color: rgb(255, 75, 75); color: rgb(255, 75, 75); }
     </style>
     """, unsafe_allow_html=True)
-# --- 4. FUNÇÃO PDF ---
+
+# --- 4. FUNÇÃO PDF (COM TOTAL GERAL) ---
 def gerar_pdf_completo(df):
     pdf = FPDF()
     pdf.add_page()
@@ -123,7 +69,6 @@ def gerar_pdf_completo(df):
     pdf.cell(190, 10, "EcoLog - Relatorio de Residuos", ln=True, align='C')
     pdf.ln(10)
     
-    # Cabeçalho da Tabela
     pdf.set_font("Arial", "B", 10)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(35, 10, "Data", 1, 0, 'C', True)
@@ -131,50 +76,61 @@ def gerar_pdf_completo(df):
     pdf.cell(60, 10, "Tipo", 1, 0, 'C', True)
     pdf.cell(45, 10, "Peso (kg)", 1, 1, 'C', True)
     
-    # Dados
     pdf.set_font("Arial", "", 10)
     total_peso = 0
     for _, r in df.sort_values('Data', ascending=False).iterrows():
-        peso = r['Peso (kg)']
-        total_peso += peso
+        total_peso += r['Peso (kg)']
         pdf.cell(35, 10, r['Data'].strftime('%d/%m/%Y'), 1, 0, 'C')
         pdf.cell(50, 10, str(r['Unidade'])[:20], 1, 0, 'C')
         pdf.cell(60, 10, str(r['Tipo'])[:25], 1, 0, 'C')
-        pdf.cell(45, 10, f"{peso:.2f}", 1, 1, 'C')
+        pdf.cell(45, 10, f"{r['Peso (kg)']:.2f}", 1, 1, 'C')
     
-    # Linha de Total
     pdf.set_font("Arial", "B", 10)
     pdf.set_fill_color(220, 230, 220)
-    pdf.cell(145, 10, "TOTAL GERAL (kg)", 1, 0, 'R', True)
-    pdf.cell(45, 10, f"{total_peso:.2f}", 1, 1, 'C', True)
-    
+    pdf.cell(145, 10, "TOTAL GERAL", 1, 0, 'R', True)
+    pdf.cell(45, 10, f"{total_peso:.2f} kg", 1, 1, 'C', True)
     return bytes(pdf.output())
-# --- 5. INTERFACE DE ENTRADA ---
+
+# --- 5. INTERFACE DE ENTRADA COM SENHA ---
 st.title("♻️ EcoLog - Gestão de Resíduos")
+
+SENHAS_UNIDADES = {
+    "Guarujá": "GUICS",
+    "Angra dos Reis": "ARICS",
+    "Ilha Bela": "IBICS",
+    "São Paulo": "SPICS"
+}
 
 with st.expander("➕ Registrar Coleta", expanded=True):
     c1, c2 = st.columns(2)
-    unidade = c1.selectbox("Unidade", ["Guarujá", "Angra dos Reis", "Ilha Bela", "São Paulo"], key=f"u{st.session_state.input_key}")
-    data_input = c2.date_input("Data", datetime.now(), format="DD/MM/YYYY", key=f"d{st.session_state.input_key}")
+    unidade_reg = c1.selectbox("Unidade", list(SENHAS_UNIDADES.keys()), key=f"u{st.session_state.input_key}")
+    data_reg = c2.date_input("Data", datetime.now(), format="DD/MM/YYYY", key=f"d{st.session_state.input_key}")
+    
     c3, c4 = st.columns(2)
-    tipo = c3.selectbox("Tipo", ["Reciclável", "Orgânico"], key=f"t{st.session_state.input_key}")
-    peso = c4.number_input("Peso (kg)", min_value=0.0, step=0.1, key=f"p{st.session_state.input_key}")
+    tipo_reg = c3.selectbox("Tipo", ["Reciclável", "Orgânico"], key=f"t{st.session_state.input_key}")
+    peso_reg = c4.number_input("Peso (kg)", min_value=0.0, step=0.1, key=f"p{st.session_state.input_key}")
+    
+    senha_input = st.text_input("Senha da Unidade", type="password", key=f"s{st.session_state.input_key}")
     
     if st.button("💾 Salvar Registro", use_container_width=True):
-        if peso > 0:
-            novo = pd.DataFrame({'Data': [pd.to_datetime(data_input)], 'Unidade': [unidade], 'Tipo': [tipo], 'Peso (kg)': [peso]})
-            st.session_state.db = pd.concat([st.session_state.db, novo], ignore_index=True)
-            salvar_dados(st.session_state.db)
-            st.success("Sincronizado com o Banco de Dados!")
-            st.session_state.input_key += 1
-            st.rerun()
+        if senha_input == SENHAS_UNIDADES[unidade_reg]:
+            if peso_reg > 0:
+                novo = pd.DataFrame({'Data': [pd.to_datetime(data_reg)], 'Unidade': [unidade_reg], 'Tipo': [tipo_reg], 'Peso (kg)': [peso_reg]})
+                st.session_state.db = pd.concat([st.session_state.db, novo], ignore_index=True)
+                salvar_dados(st.session_state.db)
+                st.success(f"Sucesso! {unidade_reg} registrado.")
+                st.session_state.input_key += 1
+                st.rerun()
+            else:
+                st.warning("Peso deve ser maior que zero.")
+        else:
+            st.error("Senha incorreta!")
 
-# --- 6. GRÁFICO E RELATÓRIOS (ORDEM NUMÉRICA DEFINITIVA) ---
+# --- 6. GRÁFICO E RELATÓRIOS ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
     
-    # 1. Filtros
     f_col1, f_col2, f_col3 = st.columns([1, 1, 1.2])
     with f_col1:
         u_ops = sorted(st.session_state.db['Unidade'].unique())
@@ -187,49 +143,35 @@ if not st.session_state.db.empty:
         data_max = st.session_state.db['Data'].max().date()
         periodo_sel = st.date_input("📅 Período:", value=(data_min, data_max), format="DD/MM/YYYY")
 
-    # 2. Slider de Agrupamento
     p_graf = st.select_slider("Agrupar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     
     if len(periodo_sel) == 2:
-        start_date, end_date = periodo_sel
-        mask = (st.session_state.db['Data'].dt.date >= start_date) & \
-               (st.session_state.db['Data'].dt.date <= end_date) & \
-               (st.session_state.db['Unidade'].isin(u_sel)) & \
-               (st.session_state.db['Tipo'].isin(t_sel))
+        start_d, end_d = periodo_sel
+        mask = (st.session_state.db['Data'].dt.date >= start_d) & (st.session_state.db['Data'].dt.date <= end_d) & (st.session_state.db['Unidade'].isin(u_sel)) & (st.session_state.db['Tipo'].isin(t_sel))
         df_f = st.session_state.db.loc[mask].copy()
     else:
         df_f = pd.DataFrame()
 
     if not df_f.empty:
-        # Ordenação cronológica antes de agrupar
         df_f = df_f.sort_values('Data')
-        
-        # 3. Lógica do Gráfico
         freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
         resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
-        
-        # Garantir ordem pelo índice de data
         resumo_grafico = resumo_grafico.sort_index()
         
-        # 4. Formatação do Eixo X (01/2026, 02/2026...)
-        if p_graf == "Semanal": 
-            resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
-        elif p_graf == "Mensal": 
-            # Formato numérico: MM/AAAA
-            resumo_grafico.index = resumo_grafico.index.strftime('%m/%Y')
-        else: 
-            resumo_grafico.index = resumo_grafico.index.strftime('%Y')
+        # Eixo X numérico para garantir ordem 01, 02, 03...
+        if p_graf == "Semanal": resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
+        elif p_graf == "Mensal": resumo_grafico.index = resumo_grafico.index.strftime('%m/%Y')
+        else: resumo_grafico.index = resumo_grafico.index.strftime('%Y')
         
-        # Exibição do Gráfico
         st.bar_chart(resumo_grafico)
 
-        # --- 5. EXPORTAÇÃO (PDF, WHATSAPP, EMAIL) ---
+        # --- EXPORTAÇÃO ---
         st.write("📤 **Exportar Seleção Atual:**")
         pdf_b = gerar_pdf_completo(df_f) 
         st.download_button("📥 Baixar Relatório em PDF", pdf_b, "relatorio_ecolog.pdf", "application/pdf", use_container_width=True)
 
         total_kg = df_f['Peso (kg)'].sum()
-        txt_raw = f"♻️ *RELATÓRIO ECOLOG DETALHADO*%0APeríodo: {start_date.strftime('%d/%m/%y')} a {end_date.strftime('%d/%m/%y')}%0A-----------------------------%0A"
+        txt_raw = f"♻️ *RELATÓRIO ECOLOG DETALHADO*%0APeríodo: {start_d.strftime('%d/%m/%y')} a {end_d.strftime('%d/%m/%y')}%0A-----------------------------%0A"
         for _, row in df_f.sort_values('Data').iterrows():
             txt_raw += f"📅 {row['Data'].strftime('%d/%m/%y')} | {row['Unidade']}%0A└ {row['Tipo']}: {row['Peso (kg)']:.2f} kg%0A%0A"
         
@@ -242,16 +184,12 @@ if not st.session_state.db.empty:
         link_w = f"https://wa.me/?text={txt_raw}"
         link_e = f"mailto:?subject=Relatorio EcoLog&body={txt_raw.replace('%0A', '%0D%0A')}"
 
-        st.markdown(f"""
-            <div class="btn-row">
-                <a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a>
-                <a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
+
+    # --- 7. GESTÃO DE DADOS ---
     st.divider()
     with st.expander("⚙️ Gerenciar Banco de Dados"):
         df_gestao = st.session_state.db.copy()
-        # Exibe no formato BR na tabela de edição
         df_gestao['Data'] = df_gestao['Data'].dt.strftime('%d/%m/%Y')
         df_gestao.insert(0, "Selecionar", False)
         tabela_editada = st.data_editor(df_gestao, column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)}, disabled=["Data", "Unidade", "Tipo", "Peso (kg)"], hide_index=True, use_container_width=True)
@@ -270,10 +208,3 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
-
-
-
-
-
-
-
