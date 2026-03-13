@@ -65,7 +65,7 @@ st.markdown("""
     }
     .footer-gabriola { 
         font-family: 'Gabriola', serif; 
-        font-size: 26px; 
+        font-size: 22px; 
         color: #2E7D32; 
         font-weight: bold; 
         line-height: 1.0 !important;
@@ -237,5 +237,6 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
+
 
 
