@@ -15,6 +15,7 @@ def carregar_dados():
         df = conn.read(ttl=0)
         if df is None or df.empty:
             return pd.DataFrame(columns=['Data', 'Unidade', 'Tipo', 'Peso (kg)'])
+        # Blindagem contra inversão de data (Padrão BR)
         df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
         df = df.dropna(subset=['Data'])
         df['Data'] = pd.to_datetime(df['Data'].dt.date)
@@ -25,25 +26,51 @@ def carregar_dados():
 def salvar_dados(df):
     try:
         df_save = df.copy()
+        # Salva em formato universal para evitar erros no Google Sheets
         df_save['Data'] = pd.to_datetime(df_save['Data']).dt.strftime('%Y-%m-%d')
         conn.update(data=df_save)
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Erro ao salvar: {e}")
 
+# Inicialização do estado da sessão
 if 'db' not in st.session_state:
     st.session_state.db = carregar_dados()
 
 if 'input_key' not in st.session_state:
     st.session_state.input_key = 0
 
-# --- 3. CSS CUSTOMIZADO (ASSINATURA COMPACTA) ---
+# --- 3. CSS CUSTOMIZADO (REDUZINDO ESPAÇAMENTO ENTRE LINHAS) ---
 st.markdown("""
     <style>
-    .footer-container { text-align: center; margin-top: 40px; padding-bottom: 20px; }
-    .idea-marcia { font-family: 'Gabriola', serif; font-size: 24px; color: #666; line-height: 0.9 !important; margin-bottom: 2px !important; }
-    .footer-label { font-family: 'Bodoni MT', serif; font-size: 16px; color: #444; font-style: italic; line-height: 0.9 !important; margin-bottom: 0px !important; }
-    .footer-gabriola { font-family: 'Gabriola', serif; font-size: 26px; color: #2E7D32; font-weight: bold; line-height: 1.0 !important; margin-top: 2px !important; }
+    .footer-container { 
+        text-align: center; 
+        margin-top: 40px; /* Reduzido o espaço acima do rodapé */
+        padding-bottom: 20px; 
+    }
+    .idea-marcia { 
+        font-family: 'Gabriola', serif; 
+        font-size: 18px; 
+        color: #666; 
+        line-height: 0.9 !important; /* Espaçamento muito curto */
+        margin-bottom: 2px !important; 
+    }
+    .footer-label { 
+        font-family: 'Bodoni MT', serif; 
+        font-size: 16px; 
+        color: #444; 
+        font-style: italic; 
+        line-height: 0.9 !important; /* Espaçamento muito curto */
+        margin-bottom: 0px !important; 
+    }
+    .footer-gabriola { 
+        font-family: 'Gabriola', serif; 
+        font-size: 22px; 
+        color: #2E7D32; 
+        font-weight: bold; 
+        line-height: 1.0 !important;
+        margin-top: 2px !important; 
+    }
     
     .btn-row { display: flex; gap: 10px; width: 100%; margin-top: 15px; margin-bottom: 20px; }
     .btn-link { text-decoration: none; flex: 1; }
@@ -56,7 +83,6 @@ st.markdown("""
     .custom-st-btn:hover { border-color: rgb(255, 75, 75); color: rgb(255, 75, 75); }
     </style>
     """, unsafe_allow_html=True)
-
 # --- 4. FUNÇÃO PDF (COM TOTAL GERAL) ---
 def gerar_pdf_completo(df):
     pdf = FPDF()
@@ -126,12 +152,11 @@ if u_login != "Selecione...":
 else:
     st.info("Escolha uma unidade acima para liberar o formulário de inserção.")
 
-# --- 6. GRÁFICO E RELATÓRIOS (CORREÇÃO DE VISUALIZAÇÃO) ---
+# --- 6. GRÁFICO E RELATÓRIOS ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
     
-    # 1. Filtros
     f_col1, f_col2, f_col3 = st.columns([1, 1, 1.2])
     with f_col1:
         u_ops = sorted(st.session_state.db['Unidade'].unique())
@@ -140,19 +165,13 @@ if not st.session_state.db.empty:
         t_ops = sorted(st.session_state.db['Tipo'].unique())
         t_sel = st.multiselect("♻️ Materiais:", t_ops, default=t_ops)
     with f_col3:
-        # Pega a data real do banco de dados para o calendário não começar vazio
-        data_min_db = st.session_state.db['Data'].min().date()
-        data_max_db = st.session_state.db['Data'].max().date()
-        
-        # O segredo está aqui: se der erro ou estiver vazio, ele usa hoje
-        periodo_sel = st.date_input("📅 Período:", 
-                                     value=(data_min_db, data_max_db), 
-                                     format="DD/MM/YYYY")
+        data_min = st.session_state.db['Data'].min().date()
+        data_max = st.session_state.db['Data'].max().date()
+        periodo_sel = st.date_input("📅 Período:", value=(data_min, data_max), format="DD/MM/YYYY")
 
     p_graf = st.select_slider("Agrupar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     
-    # Validação do intervalo de datas
-    if isinstance(periodo_sel, tuple) and len(periodo_sel) == 2:
+    if len(periodo_sel) == 2:
         start_d, end_d = periodo_sel
         mask = (st.session_state.db['Data'].dt.date >= start_d) & \
                (st.session_state.db['Data'].dt.date <= end_d) & \
@@ -160,11 +179,21 @@ if not st.session_state.db.empty:
                (st.session_state.db['Tipo'].isin(t_sel))
         df_f = st.session_state.db.loc[mask].copy()
     else:
-        # Se o usuário clicou apenas em uma data, mostra tudo por enquanto
-        df_f = st.session_state.db.copy()
+        df_f = pd.DataFrame()
 
     if not df_f.empty:
-        # ... (restante do código do gráfico igual ao anterior)
+        df_f = df_f.sort_values('Data')
+        freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
+        resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
+        resumo_grafico = resumo_grafico.sort_index()
+        
+        # Formato numérico no eixo X para garantir ordem correta (01/2026, 02/2026...)
+        if p_graf == "Semanal": resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
+        elif p_graf == "Mensal": resumo_grafico.index = resumo_grafico.index.strftime('%m/%Y')
+        else: resumo_grafico.index = resumo_grafico.index.strftime('%Y')
+        
+        st.bar_chart(resumo_grafico)
+
         # --- EXPORTAÇÃO ---
         st.write("📤 **Exportar Seleção Atual:**")
         pdf_b = gerar_pdf_completo(df_f) 
@@ -186,6 +215,69 @@ if not st.session_state.db.empty:
 
         st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
 
+  # --- 7. GESTÃO DE DADOS (VISUALIZAÇÃO TOTAL / APAGAR POR UNIDADE) ---
+    st.divider()
+    with st.expander("⚙️ Gerenciar Banco de Dados"):
+        if not st.session_state.db.empty:
+            st.write("📌 *Todos os registros estão visíveis abaixo. Para excluir, selecione os itens da **sua** unidade.*")
+            
+            # 1. Prepara a tabela com TODO o histórico
+            df_gestao = st.session_state.db.copy()
+            df_gestao['Data'] = df_gestao['Data'].dt.strftime('%d/%m/%Y')
+            df_gestao.insert(0, "Selecionar", False)
+            
+            tabela_editada = st.data_editor(
+                df_gestao, 
+                column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)},
+                disabled=["Data", "Unidade", "Tipo", "Peso (kg)"],
+                hide_index=True, 
+                use_container_width=True,
+                key="editor_gestao_geral"
+            )
+            
+            # 2. Área de validação para exclusão
+            st.markdown("---")
+            col_del1, col_del2 = st.columns([1, 1])
+            
+            with col_del1:
+                u_del = st.selectbox("Sua Unidade (para excluir):", list(SENHAS_UNIDADES.keys()), key="u_del_confirm")
+            with col_del2:
+                senha_del = st.text_input("Senha da Unidade:", type="password", key="s_del_confirm")
+            
+            if st.button("🗑️ Apagar Itens Selecionados", type="primary", use_container_width=True):
+                # A. Valida a senha primeiro
+                if senha_del == SENHAS_UNIDADES[u_del]:
+                    
+                    # B. Identifica os índices que o usuário marcou no editor
+                    indices_selecionados = tabela_editada[tabela_editada["Selecionar"] == True].index
+                    
+                    # C. Filtra, dentre os selecionados, APENAS os que são da unidade dele
+                    # Usamos o df original para bater os índices com a coluna 'Unidade'
+                    indices_validos_para_excluir = [
+                        idx for idx in indices_selecionados 
+                        if st.session_state.db.loc[idx, 'Unidade'] == u_del
+                    ]
+                    
+                    if len(indices_validos_para_excluir) > 0:
+                        # D. Remove apenas os autorizados
+                        st.session_state.db = st.session_state.db.drop(indices_validos_para_excluir).reset_index(drop=True)
+                        salvar_dados(st.session_state.db)
+                        
+                        # Mensagem de feedback detalhada
+                        if len(indices_validos_para_excluir) < len(indices_selecionados):
+                            st.warning(f"Alguns itens não foram apagados pois não pertencem a {u_del}.")
+                        else:
+                            st.success(f"Registros de {u_del} excluídos com sucesso!")
+                        
+                        st.rerun()
+                    else:
+                        st.error(f"Erro: Você não selecionou nenhum registro pertencente a **{u_del}**.")
+                
+                elif senha_del != "":
+                    st.error("⚠️ Senha incorreta para a unidade selecionada.")
+        else:
+            st.info("O banco de dados está vazio.")
+
 # --- 8. RODAPÉ ---
 st.write("---")
 st.markdown("""
@@ -195,3 +287,8 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
+
+
+
+
+
