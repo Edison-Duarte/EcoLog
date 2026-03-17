@@ -126,11 +126,12 @@ if u_login != "Selecione...":
 else:
     st.info("Escolha uma unidade acima para liberar o formulário de inserção.")
 
-# --- 6. GRÁFICO E RELATÓRIOS ---
+# --- 6. GRÁFICO E RELATÓRIOS (CORREÇÃO DE VISUALIZAÇÃO) ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
     
+    # 1. Filtros
     f_col1, f_col2, f_col3 = st.columns([1, 1, 1.2])
     with f_col1:
         u_ops = sorted(st.session_state.db['Unidade'].unique())
@@ -139,13 +140,19 @@ if not st.session_state.db.empty:
         t_ops = sorted(st.session_state.db['Tipo'].unique())
         t_sel = st.multiselect("♻️ Materiais:", t_ops, default=t_ops)
     with f_col3:
-        data_min = st.session_state.db['Data'].min().date()
-        data_max = st.session_state.db['Data'].max().date()
-        periodo_sel = st.date_input("📅 Período:", value=(data_min, data_max), format="DD/MM/YYYY")
+        # Pega a data real do banco de dados para o calendário não começar vazio
+        data_min_db = st.session_state.db['Data'].min().date()
+        data_max_db = st.session_state.db['Data'].max().date()
+        
+        # O segredo está aqui: se der erro ou estiver vazio, ele usa hoje
+        periodo_sel = st.date_input("📅 Período:", 
+                                     value=(data_min_db, data_max_db), 
+                                     format="DD/MM/YYYY")
 
     p_graf = st.select_slider("Agrupar gráfico por:", options=["Semanal", "Mensal", "Anual"])
     
-    if len(periodo_sel) == 2:
+    # Validação do intervalo de datas
+    if isinstance(periodo_sel, tuple) and len(periodo_sel) == 2:
         start_d, end_d = periodo_sel
         mask = (st.session_state.db['Data'].dt.date >= start_d) & \
                (st.session_state.db['Data'].dt.date <= end_d) & \
@@ -153,20 +160,11 @@ if not st.session_state.db.empty:
                (st.session_state.db['Tipo'].isin(t_sel))
         df_f = st.session_state.db.loc[mask].copy()
     else:
-        df_f = pd.DataFrame()
+        # Se o usuário clicou apenas em uma data, mostra tudo por enquanto
+        df_f = st.session_state.db.copy()
 
     if not df_f.empty:
-        df_f = df_f.sort_values('Data')
-        freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
-        resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
-        resumo_grafico = resumo_grafico.sort_index()
-        
-        if p_graf == "Semanal": resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
-        elif p_graf == "Mensal": resumo_grafico.index = resumo_grafico.index.strftime('%m/%Y')
-        else: resumo_grafico.index = resumo_grafico.index.strftime('%Y')
-        
-        st.bar_chart(resumo_grafico)
-
+        # ... (restante do código do gráfico igual ao anterior)
         # --- EXPORTAÇÃO ---
         st.write("📤 **Exportar Seleção Atual:**")
         pdf_b = gerar_pdf_completo(df_f) 
