@@ -45,14 +45,14 @@ st.markdown("""
     <style>
     .footer-container { 
         text-align: center; 
-        margin-top: 40px; /* Reduzido o espaço acima do rodapé */
+        margin-top: 40px; 
         padding-bottom: 20px; 
     }
     .idea-marcia { 
         font-family: 'Gabriola', serif; 
         font-size: 18px; 
         color: #666; 
-        line-height: 0.9 !important; /* Espaçamento muito curto */
+        line-height: 0.9 !important; 
         margin-bottom: 2px !important; 
     }
     .footer-label { 
@@ -60,7 +60,7 @@ st.markdown("""
         font-size: 16px; 
         color: #444; 
         font-style: italic; 
-        line-height: 0.9 !important; /* Espaçamento muito curto */
+        line-height: 0.9 !important; 
         margin-bottom: 0px !important; 
     }
     .footer-gabriola { 
@@ -83,7 +83,8 @@ st.markdown("""
     .custom-st-btn:hover { border-color: rgb(255, 75, 75); color: rgb(255, 75, 75); }
     </style>
     """, unsafe_allow_html=True)
-# --- 4. FUNÇÃO PDF (COM TOTAL GERAL) ---
+
+# --- 4. FUNÇÃO PDF ---
 def gerar_pdf_completo(df):
     pdf = FPDF()
     pdf.add_page()
@@ -187,7 +188,6 @@ if not st.session_state.db.empty:
         resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
         resumo_grafico = resumo_grafico.sort_index()
         
-        # Formato numérico no eixo X para garantir ordem correta (01/2026, 02/2026...)
         if p_graf == "Semanal": resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
         elif p_graf == "Mensal": resumo_grafico.index = resumo_grafico.index.strftime('%m/%Y')
         else: resumo_grafico.index = resumo_grafico.index.strftime('%Y')
@@ -215,66 +215,20 @@ if not st.session_state.db.empty:
 
         st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
 
-  # --- 7. GESTÃO DE DADOS (VISUALIZAÇÃO TOTAL / APAGAR POR UNIDADE) ---
+    # --- 7. GESTÃO DE DADOS (APENAS VISUALIZAÇÃO) ---
     st.divider()
-    with st.expander("⚙️ Gerenciar Banco de Dados"):
+    with st.expander("⚙️ Visualizar Banco de Dados"):
         if not st.session_state.db.empty:
-            st.write("📌 *Todos os registros estão visíveis abaixo. Para excluir, selecione os itens da **sua** unidade.*")
+            st.write("📌 *Histórico completo de registros (Somente Leitura)*")
             
-            # 1. Prepara a tabela com TODO o histórico
             df_gestao = st.session_state.db.copy()
             df_gestao['Data'] = df_gestao['Data'].dt.strftime('%d/%m/%Y')
-            df_gestao.insert(0, "Selecionar", False)
             
-            tabela_editada = st.data_editor(
+            st.dataframe(
                 df_gestao, 
-                column_config={"Selecionar": st.column_config.CheckboxColumn(required=True)},
-                disabled=["Data", "Unidade", "Tipo", "Peso (kg)"],
                 hide_index=True, 
-                use_container_width=True,
-                key="editor_gestao_geral"
+                use_container_width=True
             )
-            
-            # 2. Área de validação para exclusão
-            st.markdown("---")
-            col_del1, col_del2 = st.columns([1, 1])
-            
-            with col_del1:
-                u_del = st.selectbox("Sua Unidade (para excluir):", list(SENHAS_UNIDADES.keys()), key="u_del_confirm")
-            with col_del2:
-                senha_del = st.text_input("Senha da Unidade:", type="password", key="s_del_confirm")
-            
-            if st.button("🗑️ Apagar Itens Selecionados", type="primary", use_container_width=True):
-                # A. Valida a senha primeiro
-                if senha_del == SENHAS_UNIDADES[u_del]:
-                    
-                    # B. Identifica os índices que o usuário marcou no editor
-                    indices_selecionados = tabela_editada[tabela_editada["Selecionar"] == True].index
-                    
-                    # C. Filtra, dentre os selecionados, APENAS os que são da unidade dele
-                    # Usamos o df original para bater os índices com a coluna 'Unidade'
-                    indices_validos_para_excluir = [
-                        idx for idx in indices_selecionados 
-                        if st.session_state.db.loc[idx, 'Unidade'] == u_del
-                    ]
-                    
-                    if len(indices_validos_para_excluir) > 0:
-                        # D. Remove apenas os autorizados
-                        st.session_state.db = st.session_state.db.drop(indices_validos_para_excluir).reset_index(drop=True)
-                        salvar_dados(st.session_state.db)
-                        
-                        # Mensagem de feedback detalhada
-                        if len(indices_validos_para_excluir) < len(indices_selecionados):
-                            st.warning(f"Alguns itens não foram apagados pois não pertencem a {u_del}.")
-                        else:
-                            st.success(f"Registros de {u_del} excluídos com sucesso!")
-                        
-                        st.rerun()
-                    else:
-                        st.error(f"Erro: Você não selecionou nenhum registro pertencente a **{u_del}**.")
-                
-                elif senha_del != "":
-                    st.error("⚠️ Senha incorreta para a unidade selecionada.")
         else:
             st.info("O banco de dados está vazio.")
 
@@ -287,8 +241,3 @@ st.markdown("""
         <div class="footer-gabriola">Edison Duarte Filho®</div>
     </div>
 """, unsafe_allow_html=True)
-
-
-
-
-
