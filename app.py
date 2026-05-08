@@ -153,7 +153,7 @@ if u_login != "Selecione...":
 else:
     st.info("Escolha uma unidade acima para liberar o formulário de inserção.")
 
-# --- 6. GRÁFICO E RELATÓRIOS ---
+# --- 6. GRÁFICO E RELATÓRIOS (LEITURA FACILITADA) ---
 if not st.session_state.db.empty:
     st.divider()
     st.subheader("📊 Consolidado Dinâmico")
@@ -184,14 +184,23 @@ if not st.session_state.db.empty:
 
     if not df_f.empty:
         df_f = df_f.sort_values('Data')
-        freq_map = {"Semanal": "W", "Mensal": "ME", "Anual": "YE"}
-        resumo_grafico = df_f.groupby([pd.Grouper(key='Data', freq=freq_map[p_graf]), 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
-        resumo_grafico = resumo_grafico.sort_index()
         
-        if p_graf == "Semanal": resumo_grafico.index = resumo_grafico.index.strftime('%d/%m/%Y')
-        elif p_graf == "Mensal": resumo_grafico.index = resumo_grafico.index.strftime('%m/%Y')
-        else: resumo_grafico.index = resumo_grafico.index.strftime('%Y')
+        # Lógica de agrupamento melhorada
+        if p_graf == "Semanal":
+            # Agrupa por semana (W), mas define o rótulo como o intervalo (Segunda a Domingo)
+            df_f['Semana'] = df_f['Data'].dt.to_period('W').apply(lambda r: f"{r.start_time.strftime('%d/%m')} a {r.end_time.strftime('%d/%m')}")
+            resumo_grafico = df_f.groupby(['Semana', 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
         
+        elif p_graf == "Mensal":
+            df_f['Mes'] = df_f['Data'].dt.strftime('%m/%Y')
+            resumo_grafico = df_f.groupby(['Mes', 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
+            # Garante que os meses fiquem em ordem cronológica
+            resumo_grafico.index = pd.to_datetime(resumo_grafico.index, format='%m/%Y').strftime('%m/%Y')
+        
+        else: # Anual
+            df_f['Ano'] = df_f['Data'].dt.strftime('%Y')
+            resumo_grafico = df_f.groupby(['Ano', 'Tipo'])['Peso (kg)'].sum().unstack().fillna(0)
+
         st.bar_chart(resumo_grafico)
 
         # --- EXPORTAÇÃO ---
@@ -214,7 +223,6 @@ if not st.session_state.db.empty:
         link_e = f"mailto:?subject=Relatorio EcoLog&body={txt_raw.replace('%0A', '%0D%0A')}"
 
         st.markdown(f'<div class="btn-row"><a href="{link_w}" target="_blank" class="btn-link"><div class="custom-st-btn">📲 WhatsApp</div></a><a href="{link_e}" class="btn-link"><div class="custom-st-btn">📧 E-mail</div></a></div>', unsafe_allow_html=True)
-
     # --- 7. GESTÃO DE DADOS (APENAS VISUALIZAÇÃO) ---
     st.divider()
     with st.expander("⚙️ Visualizar Banco de Dados"):
